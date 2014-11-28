@@ -1,0 +1,84 @@
+From 766a85d7bc5d7f1ddd6de28bdb844eae45ec63b0 Mon Sep 17 00:00:00 2001
+From: AKASHI Takahiro <takahiro.akashi@linaro.org>
+Date: Fri, 28 Nov 2014 05:26:34 +0000
+Subject: [PATCH] arm64: ptrace: add NT_ARM_SYSTEM_CALL regset
+
+Backported to the Huawei 3.10 kernel. The implementation is from Linux
+commit 766a85d7bc5d7f1ddd6de28bdb844eae45ec63b0.
+
+Signed-off-by: AKASHI Takahiro <takahiro.akashi@linaro.org>
+Signed-off-by: Will Deacon <will.deacon@arm.com>
+---
+diff --git a/arch/arm64/kernel/ptrace.c b/arch/arm64/kernel/ptrace.c
+index 13443a10..38de6494 100755
+--- a/arch/arm64/kernel/ptrace.c
++++ b/arch/arm64/kernel/ptrace.c
+@@ -552,6 +552,33 @@ static int tls_set(struct task_struct *target, const struct user_regset *regset,
+ 	return ret;
+ }
+ 
++static int system_call_get(struct task_struct *target,
++			   const struct user_regset *regset,
++			   unsigned int pos, unsigned int count,
++			   void *kbuf, void __user *ubuf)
++{
++	int syscallno = task_pt_regs(target)->syscallno;
++
++	return user_regset_copyout(&pos, &count, &kbuf, &ubuf,
++				   &syscallno, 0, -1);
++}
++
++static int system_call_set(struct task_struct *target,
++			   const struct user_regset *regset,
++			   unsigned int pos, unsigned int count,
++			   const void *kbuf, const void __user *ubuf)
++{
++	int syscallno, ret;
++
++	ret = user_regset_copyin(&pos, &count, &kbuf, &ubuf,
++				 &syscallno, 0, -1);
++	if (ret)
++		return ret;
++
++	task_pt_regs(target)->syscallno = syscallno;
++	return ret;
++}
++
+ enum aarch64_regset {
+ 	REGSET_GPR,
+ 	REGSET_FPR,
+@@ -560,6 +587,7 @@ enum aarch64_regset {
+ 	REGSET_HW_BREAK,
+ 	REGSET_HW_WATCH,
+ #endif
++	REGSET_SYSTEM_CALL,
+ };
+ 
+ static const struct user_regset aarch64_regsets[] = {
+@@ -609,6 +637,14 @@ static const struct user_regset aarch64_regsets[] = {
+ 		.set = hw_break_set,
+ 	},
+ #endif
++	[REGSET_SYSTEM_CALL] = {
++		.core_note_type = NT_ARM_SYSTEM_CALL,
++		.n = 1,
++		.size = sizeof(int),
++		.align = sizeof(int),
++		.get = system_call_get,
++		.set = system_call_set,
++	},
+ };
+ 
+ static const struct user_regset_view user_aarch64_view = {
+diff --git a/include/uapi/linux/elf.h b/include/uapi/linux/elf.h
+index ef6103bf..80c61675 100644
+--- a/include/uapi/linux/elf.h
++++ b/include/uapi/linux/elf.h
+@@ -395,6 +395,7 @@ typedef struct elf64_shdr {
+ #define NT_ARM_TLS	0x401		/* ARM TLS register */
+ #define NT_ARM_HW_BREAK	0x402		/* ARM hardware breakpoint registers */
+ #define NT_ARM_HW_WATCH	0x403		/* ARM hardware watchpoint registers */
++#define NT_ARM_SYSTEM_CALL	0x404	/* ARM system call number */
+ #define NT_METAG_CBUF	0x500		/* Metag catch buffer registers */
+ #define NT_METAG_RPIPE	0x501		/* Metag read pipeline state */
+ #define NT_METAG_TLS	0x502		/* Metag TLS pointer */
