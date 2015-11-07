@@ -1,0 +1,39 @@
+From b44551262e072e7005704e0c0afb5c177da81c7e Mon Sep 17 00:00:00 2001
+From: Oleg Nesterov <oleg@redhat.com>
+Date: Fri, 6 Nov 2015 16:30:06 -0800
+Subject: [PATCH 4/4] proc: actually make proc_fd_permission() thread-friendly
+
+Backport of Linux commit 54708d2858e79a2bdda10bf8a20c80eb96c20613.
+
+Signed-off-by: Oleg Nesterov <oleg@redhat.com>
+
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ fs/proc/fd.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/fs/proc/fd.c b/fs/proc/fd.c
+index d7a4a28e..029814fb 100644
+--- a/fs/proc/fd.c
++++ b/fs/proc/fd.c
+@@ -302,11 +302,17 @@ static struct dentry *proc_lookupfd(struct inode *dir, struct dentry *dentry,
+  */
+ int proc_fd_permission(struct inode *inode, int mask)
+ {
++	struct task_struct *p;
+ 	int rv = generic_permission(inode, mask);
+ 	if (rv == 0)
+ 		return 0;
+-	if (task_pid(current) == proc_pid(inode))
++
++	rcu_read_lock();
++	p = pid_task(proc_pid(inode), PIDTYPE_PID);
++	if (p && same_thread_group(p, current))
+ 		rv = 0;
++	rcu_read_unlock();
++
+ 	return rv;
+ }
+ 
