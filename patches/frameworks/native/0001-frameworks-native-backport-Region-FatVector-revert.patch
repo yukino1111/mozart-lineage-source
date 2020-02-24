@@ -1,0 +1,203 @@
+From 87a1fdcb9e3ed563ed5b33962949d1bf3c0a2796 Mon Sep 17 00:00:00 2001
+From: Tim Murray <timmurray@google.com>
+Date: Mon, 24 Feb 2020 21:30:20 +0000
+Subject: [PATCH 1/2] frameworks/native: backport Region FatVector revert
+
+Backport of AOSP commit b11abe70adc17204605946cbe4b71b6705fd19b1, adapted to the LineageOS 18.1 Vector API.
+---
+ libs/ui/Region.cpp          | 50 +++++++++++++++++--------------------
+ libs/ui/include/ui/Region.h |  4 +--
+ 2 files changed, 25 insertions(+), 29 deletions(-)
+
+diff --git a/libs/ui/Region.cpp b/libs/ui/Region.cpp
+index e01309b679..f1080530d1 100644
+--- a/libs/ui/Region.cpp
++++ b/libs/ui/Region.cpp
+@@ -70,10 +70,8 @@ Region::Region() {
+     mStorage.push_back(Rect(0, 0));
+ }
+ 
+-Region::Region(const Region& rhs)
++Region::Region(const Region& rhs) : mStorage(rhs.mStorage)
+ {
+-    mStorage.clear();
+-    mStorage.insert(mStorage.begin(), rhs.mStorage.begin(), rhs.mStorage.end());
+ #if defined(VALIDATE_REGIONS)
+     validate(rhs, "rhs copy-ctor");
+ #endif
+@@ -101,7 +99,7 @@ Region::~Region()
+  * final, correctly ordered region buffer. Each rectangle will be compared with the span directly
+  * above it, and subdivided to resolve any remaining T-junctions.
+  */
+-static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end, FatVector<Rect>& dst,
++static void reverseRectsResolvingJunctions(const Rect* begin, const Rect* end, Vector<Rect>& dst,
+                                            int spanDirection) {
+     dst.clear();
+ 
+@@ -202,11 +200,11 @@ Region Region::createTJunctionFreeRegion(const Region& r) {
+     if (r.isEmpty()) return r;
+     if (r.isRect()) return r;
+ 
+-    FatVector<Rect> reversed;
++    Vector<Rect> reversed;
+     reverseRectsResolvingJunctions(r.begin(), r.end(), reversed, direction_RTL);
+ 
+     Region outputRegion;
+-    reverseRectsResolvingJunctions(reversed.data(), reversed.data() + reversed.size(),
++    reverseRectsResolvingJunctions(reversed.array(), reversed.array() + reversed.size(),
+                                    outputRegion.mStorage, direction_LTR);
+     outputRegion.mStorage.push_back(
+             r.getBounds()); // to make region valid, mStorage must end with bounds
+@@ -229,8 +227,7 @@ Region& Region::operator = (const Region& rhs)
+         return *this;
+     }
+ 
+-    mStorage.clear();
+-    mStorage.insert(mStorage.begin(), rhs.mStorage.begin(), rhs.mStorage.end());
++    mStorage = rhs.mStorage;
+     return *this;
+ }
+ 
+@@ -307,7 +304,7 @@ bool Region::hasSameRects(const Region& other) const {
+ void Region::addRectUnchecked(int l, int t, int r, int b)
+ {
+     Rect rect(l,t,r,b);
+-    mStorage.insert(mStorage.end() - 1, rect);
++    mStorage.insertAt(rect, mStorage.size() - 1);
+ }
+ 
+ // ----------------------------------------------------------------------------
+@@ -365,7 +362,7 @@ Region& Region::translateSelf(int x, int y) {
+ 
+ Region& Region::scaleSelf(float sx, float sy) {
+     size_t count = mStorage.size();
+-    Rect* rects = mStorage.data();
++    Rect* rects = mStorage.editArray();
+     while (count) {
+         rects->left = static_cast<int32_t>(static_cast<float>(rects->left) * sx + 0.5f);
+         rects->right = static_cast<int32_t>(static_cast<float>(rects->right) * sx + 0.5f);
+@@ -470,10 +467,10 @@ const Region Region::operation(const Region& rhs, int dx, int dy, uint32_t op) c
+ class Region::rasterizer : public region_operator<Rect>::region_rasterizer
+ {
+     Rect bounds;
+-    FatVector<Rect>& storage;
++    Vector<Rect>& storage;
+     Rect* head;
+     Rect* tail;
+-    FatVector<Rect> span;
++    Vector<Rect> span;
+     Rect* cur;
+ public:
+     explicit rasterizer(Region& reg)
+@@ -500,8 +497,8 @@ Region::rasterizer::~rasterizer()
+         flushSpan();
+     }
+     if (storage.size()) {
+-        bounds.top = storage.front().top;
+-        bounds.bottom = storage.back().bottom;
++        bounds.top = storage[0].top;
++        bounds.bottom = storage.top().bottom;
+         if (storage.size() == 1) {
+             storage.clear();
+         }
+@@ -525,14 +522,14 @@ void Region::rasterizer::operator()(const Rect& rect)
+         }
+     }
+     span.push_back(rect);
+-    cur = span.data() + (span.size() - 1);
++    cur = span.editArray() + (span.size() - 1);
+ }
+ 
+ void Region::rasterizer::flushSpan()
+ {
+     bool merge = false;
+     if (tail-head == ssize_t(span.size())) {
+-        Rect const* p = span.data();
++        Rect const* p = span.array();
+         Rect const* q = head;
+         if (p->top == q->bottom) {
+             merge = true;
+@@ -547,17 +544,17 @@ void Region::rasterizer::flushSpan()
+         }
+     }
+     if (merge) {
+-        const int bottom = span.front().bottom;
++        const int bottom = span[0].bottom;
+         Rect* r = head;
+         while (r != tail) {
+             r->bottom = bottom;
+             r++;
+         }
+     } else {
+-        bounds.left = min(span.front().left, bounds.left);
+-        bounds.right = max(span.back().right, bounds.right);
+-        storage.insert(storage.end(), span.begin(), span.end());
+-        tail = storage.data() + storage.size();
++        bounds.left = min(span[0].left, bounds.left);
++        bounds.right = max(span.top().right, bounds.right);
++        storage.appendArray(span.array(), span.size());
++        tail = storage.editArray() + storage.size();
+         head = tail - span.size();
+     }
+     span.clear();
+@@ -800,7 +797,7 @@ void Region::translate(Region& reg, int dx, int dy)
+         validate(reg, "translate (before)");
+ #endif
+         size_t count = reg.mStorage.size();
+-        Rect* rects = reg.mStorage.data();
++        Rect* rects = reg.mStorage.editArray();
+         while (count) {
+             rects->offsetBy(dx, dy);
+             rects++;
+@@ -880,25 +877,24 @@ status_t Region::unflatten(void const* buffer, size_t size) {
+         ALOGE("Region::unflatten() failed, invalid region");
+         return BAD_VALUE;
+     }
+-    mStorage.clear();
+-    mStorage.insert(mStorage.begin(), result.mStorage.begin(), result.mStorage.end());
++    mStorage = result.mStorage;
+     return NO_ERROR;
+ }
+ 
+ // ----------------------------------------------------------------------------
+ 
+ Region::const_iterator Region::begin() const {
+-    return mStorage.data();
++    return mStorage.array();
+ }
+ 
+ Region::const_iterator Region::end() const {
+     // Workaround for b/77643177
+     // mStorage should never be empty, but somehow it is and it's causing
+     // an abort in ubsan
+-    if (mStorage.empty()) return mStorage.data();
++    if (mStorage.empty()) return mStorage.array();
+ 
+     size_t numRects = isRect() ? 1 : mStorage.size() - 1;
+-    return mStorage.data() + numRects;
++    return mStorage.array() + numRects;
+ }
+ 
+ Rect const* Region::getArray(size_t* count) const {
+diff --git a/libs/ui/include/ui/Region.h b/libs/ui/include/ui/Region.h
+index 6bb7b8d21c..1d91a01ca2 100644
+--- a/libs/ui/include/ui/Region.h
++++ b/libs/ui/include/ui/Region.h
+@@ -26,7 +26,7 @@
+ 
+ #include <android-base/macros.h>
+ 
+-#include "FatVector.h"
++#include <utils/Vector.h>
+ 
+ #include <string>
+ 
+@@ -180,7 +180,7 @@ private:
+     // with an extra Rect as the last element which is set to the
+     // bounds of the region. However, if the region is
+     // a simple Rect then mStorage contains only that rect.
+-    FatVector<Rect> mStorage;
++    Vector<Rect> mStorage;
+ };
+ 
+ 
