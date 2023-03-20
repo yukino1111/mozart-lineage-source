@@ -6,18 +6,18 @@ on post-fs-data
     mkdir /data/misc/dhcp 0770 dhcp dhcp
 
 on boot
-    chown bluetooth net_bt_stack /dev/ttyAMA4
+    chown bluetooth bluetooth /dev/ttyAMA4
     chmod 660 /dev/ttyAMA4
 
-    chown bluetooth net_bt_stack /sys/class/rfkill/rfkill0/type
-    chown bluetooth net_bt_stack /sys/class/rfkill/rfkill0/state
+    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/type
+    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/state
     chmod 0774 /sys/class/rfkill/rfkill0/state
 
-    chown bluetooth net_bt_stack /proc/bluetooth/sleep/proto
+    chown bluetooth bluetooth /proc/bluetooth/sleep/proto
     chmod 664 /proc/bluetooth/sleep/proto
-    chown bluetooth net_bt_stack /proc/bluetooth/sleep/btwrite
+    chown bluetooth bluetooth /proc/bluetooth/sleep/btwrite
     chmod 664 /proc/bluetooth/sleep/btwrite
-    chown bluetooth net_bt_stack /proc/bluetooth/sleep/btwake
+    chown bluetooth bluetooth /proc/bluetooth/sleep/btwake
     chmod 664 /proc/bluetooth/sleep/btwake
 
     setprop wifi.interface wlan0
@@ -29,7 +29,7 @@ on boot
 service macaddr /system/bin/mac_addr_normalization
     class core
     user root
-    group root bluetooth net_bt_stack wifi
+    group root bluetooth bluetooth wifi
     oneshot
 
 service p2p_supplicant /system/bin/wpa_supplicant -d \
@@ -56,7 +56,7 @@ service wpa_supplicant /system/bin/wpa_supplicant -d \
 
 on property:bluetooth.log.file.create=true
    mkdir /data/hwzd_logs/bt
-   chown bluetooth net_bt_stack /data/hwzd_logs/bt
+   chown bluetooth bluetooth /data/hwzd_logs/bt
    chmod 775 /data/hwzd_logs/bt
 
    setprop bluetooth.log.file.create false
