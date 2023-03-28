@@ -26,15 +26,15 @@ on boot
     chown system system /sys/devices/platform/bcmdhd_wlan.1/wifi_arp_timeout
     chown system system /dev/vio
 
-service macaddr /system/bin/mac_addr_normalization
+service macaddr /vendor/bin/mac_addr_normalization
     class core
     user root
     group root bluetooth bluetooth wifi
     oneshot
 
-service p2p_supplicant /system/bin/wpa_supplicant -d \
+service p2p_supplicant /vendor/bin/hw/wpa_supplicant -d \
     -iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf \
-    -I/system/etc/wifi/wpa_supplicant_overlay.conf \
+    -I/vendor/etc/wifi/wpa_supplicant_overlay.conf \
     -m/data/misc/wifi/p2p_supplicant.conf \
     -O/data/misc/wifi/sockets \
     -puse_p2p_group_interface=1p2p_device=1 \
@@ -44,9 +44,9 @@ service p2p_supplicant /system/bin/wpa_supplicant -d \
     disabled
     oneshot
 
-service wpa_supplicant /system/bin/wpa_supplicant -d \
+service wpa_supplicant /vendor/bin/hw/wpa_supplicant -d \
     -iwlan0 -Dnl80211 -c/data/misc/wifi/wpa_supplicant.conf \
-    -I/system/etc/wifi/wpa_supplicant_overlay.conf \
+    -I/vendor/etc/wifi/wpa_supplicant_overlay.conf \
     -O/data/misc/wifi/sockets \
     -e/data/misc/wifi/entropy.bin -g@android:wpa_wlan0
     class main
