@@ -8,6 +8,9 @@ post-fs-data
 on boot
     chown wifi wifi /sys/module/bcmdhd/parameters/firmware_path
 
+    mkdir /dev/socket/wifihal 0770 wifi wifi
+    chmod 2770 /dev/socket/wifihal
+
     chown bluetooth bluetooth /dev/ttyAMA4
     chmod 660 /dev/ttyAMA4
 
