@@ -1,11 +1,9 @@
 post-fs-data
-    mkdir /data/misc/wifi 0770 wifi wifi
     chown wifi wifi /data/misc/wifi/p2p_supplicant.conf
     chmod 0660 /data/misc/wifi/p2p_supplicant.conf
     mkdir /data/vendor/wifi 0771 wifi wifi
     mkdir /data/vendor/wifi/wpa 0770 wifi wifi
-    mkdir /data/vendor/wifi/wpa/sockets 0770 wifi wifi    
-    mkdir /data/misc/dhcp 0770 dhcp dhcp
+    mkdir /data/vendor/wifi/wpa/sockets 0770 wifi wifi
 
 on boot
     chown wifi wifi /sys/module/bcmdhd/parameters/firmware_path
