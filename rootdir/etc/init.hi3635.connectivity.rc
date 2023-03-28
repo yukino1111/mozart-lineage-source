@@ -6,6 +6,8 @@ on post-fs-data
     mkdir /data/misc/dhcp 0770 dhcp dhcp
 
 on boot
+    chown wifi wifi /sys/module/bcmdhd/parameters/firmware_path
+
     chown bluetooth bluetooth /dev/ttyAMA4
     chmod 660 /dev/ttyAMA4
 
