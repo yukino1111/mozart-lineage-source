@@ -36,7 +36,7 @@ service macaddr /vendor/bin/mac_addr_normalization
 
 service wpa_supplicant /vendor/bin/hw/wpa_supplicant -d \
     -O/data/misc/wifi/sockets \
-    -e/data/misc/wifi/entropy.bin -g@android:wpa_wlan0
+    -g@android:wpa_wlan0
     interface android.hardware.wifi.supplicant@1.0::ISupplicant default
     interface android.hardware.wifi.supplicant@1.1::ISupplicant default
     class main
