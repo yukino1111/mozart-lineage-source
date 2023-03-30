@@ -14,6 +14,9 @@ on boot
     chown bluetooth bluetooth /dev/ttyAMA4
     chmod 660 /dev/ttyAMA4
 
+    chown bluetooth bluetooth /dev/hwbt
+    chmod 660 /dev/hwbt
+
     chown bluetooth bluetooth /sys/class/rfkill/rfkill0/type
     chown bluetooth bluetooth /sys/class/rfkill/rfkill0/state
     chmod 0774 /sys/class/rfkill/rfkill0/state
