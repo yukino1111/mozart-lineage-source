@@ -1,0 +1,82 @@
+From d590715ce4314129287f76c974d9ed706c938848 Mon Sep 17 00:00:00 2001
+From: schwienernitzel <pfelix0803@gmail.com>
+Date: Mon, 31 Mar 2025 10:53:12 +0200
+Subject: [PATCH] audio: Skip setMasterVolume function if not implemented
+
+03-28 13:17:24.030  2945  2945 W DeviceHAL: Error from HAL Device in function set_master_volume: Function not implemented
+03-28 13:17:24.031  2945  2945 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+03-28 13:17:24.032  2945  2945 F DEBUG   : LineageOS Version: '16.0-20250328-UNOFFICIAL-mozart'
+03-28 13:17:24.032  2945  2945 F DEBUG   : Build fingerprint: 'Huawei/MOZART/hi3635:6.0/MRA58K/huawei11291304:user/test-keys'
+03-28 13:17:24.032  2945  2945 F DEBUG   : Revision: '0'
+03-28 13:17:24.032  2945  2945 F DEBUG   : ABI: 'arm'
+03-28 13:17:24.032  2945  2945 F DEBUG   : pid: 2738, tid: 2891, name: HwBinder:2738_1  >>> /vendor/bin/hw/android.hardware.audio@2.0-service <<<
+03-28 13:17:24.032  2945  2945 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x0
+03-28 13:17:24.032  2945  2945 F DEBUG   : Cause: null pointer dereference
+03-28 13:17:24.032  2945  2945 F DEBUG   :     r0  00000000  r1  00000000  r2  00000000  r3  dc80c2bb
+03-28 13:17:24.032  2945  2945 F DEBUG   :     r4  dcdc13b4  r5  dcdc13d7  r6  dd19d050  r7  dcdc1788
+03-28 13:17:24.032  2945  2945 F DEBUG   :     r8  dcdc1690  r9  dcdc17cc  r10 dcdc1810  r11 00000000
+03-28 13:17:24.032  2945  2945 F DEBUG   :     ip  ddef9464  sp  dcdc1368  lr  dd05f8d3  pc  dc80c2bc
+03-28 13:17:24.040  2728  2728 D Zygote  : begin preload
+03-28 13:17:24.040  2728  2728 I Zygote  : Installing ICU cache reference pinning...
+03-28 13:17:24.040  2728  2728 I Zygote  : Preloading ICU data...
+03-28 13:17:24.044  2729  2729 I zygote  : Explicit concurrent copying GC freed 186(9KB) AllocSpace objects, 0(0B) LOS objects, 98% free, 22KB/1558KB, paused 66us total 6.978ms
+03-28 13:17:24.049  2945  2945 F DEBUG   :
+03-28 13:17:24.049  2945  2945 F DEBUG   : backtrace:
+03-28 13:17:24.049  2945  2945 F DEBUG   :     #00 pc 0000b2bc  /system/lib/hw/audio.primary.hi3635.so (adev_get_master_mute+2)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #01 pc 000198d1  /system/vendor/lib/hw/android.hardware.audio@2.0-impl.so (android::hardware::audio::V2_0::implementation::Device::setMasterMute(bool)+16)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #02 pc 0001bead  /system/vendor/lib/hw/android.hardware.audio@2.0-impl.so (android::hardware::audio::V2_0::implementation::PrimaryDevice::setMasterMute(bool)+8)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #03 pc 00030101  /system/lib/android.hardware.audio@2.0.so (android::hardware::audio::V2_0::BnHwDevice::_hidl_setMasterMute(android::hidl::base::V1_0::BnHwBase*, android::hardware::Parcel const&, android::hardware::Parcel*, std::__1::function<void (android::hardware::Parcel&)>)+140)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #04 pc 00043dff  /system/lib/android.hardware.audio@2.0.so (android::hardware::audio::V2_0::BnHwPrimaryDevice::onTransact(unsigned int, android::hardware::Parcel const&, android::hardware::Parcel*, unsigned int, std::__1::function<void (android::hardware::Parcel&)>)+1398)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #05 pc 00016641  /system/lib/libhwbinder.so (android::hardware::BHwBinder::transact(unsigned int, android::hardware::Parcel const&, android::hardware::Parcel*, unsigned int, std::__1::function<void (android::hardware::Parcel&)>)+48)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #06 pc 0000f7b7  /system/lib/libhwbinder.so (android::hardware::IPCThreadState::executeCommand(int)+802)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #07 pc 0000f389  /system/lib/libhwbinder.so (android::hardware::IPCThreadState::getAndExecuteCommand()+128)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #08 pc 0000fc33  /system/lib/libhwbinder.so (android::hardware::IPCThreadState::joinThreadPool(bool)+186)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #09 pc 00015ff5  /system/lib/libhwbinder.so (android::hardware::PoolThread::threadLoop()+12)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #10 pc 0000c0db  /system/lib/libutils.so (android::Thread::_threadLoop(void*)+166)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #11 pc 00064099  /system/lib/libc.so (__pthread_start(void*)+22)
+03-28 13:17:24.050  2945  2945 F DEBUG   :     #12 pc 0001defd  /system/lib/libc.so (__start_thread+24)
+
+Change-Id: If230971d5fa096c242f56ba2926af8fccd832350
+Signed-off-by: schwienernitzel <pfelix0803@gmail.com>
+---
+ .../default/include/core/all-versions/default/Device.impl.h  | 5 +++--
+ .../include/core/all-versions/default/PrimaryDevice.impl.h   | 4 ++++
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/audio/core/all-versions/default/include/core/all-versions/default/Device.impl.h b/audio/core/all-versions/default/include/core/all-versions/default/Device.impl.h
+index 230b8de..5e1c2a9 100644
+--- a/audio/core/all-versions/default/include/core/all-versions/default/Device.impl.h
++++ b/audio/core/all-versions/default/include/core/all-versions/default/Device.impl.h
+@@ -66,11 +66,12 @@ Return<Result> Device::initCheck() {
+ }
+ 
+ Return<Result> Device::setMasterVolume(float volume) {
+-    if (mDevice->set_master_volume == NULL) {
++    if (mDevice == NULL || mDevice->set_master_volume == NULL) {
++        ALOGW("setMasterVolume not supported on this device");
+         return Result::NOT_SUPPORTED;
+     }
+     if (!isGainNormalized(volume)) {
+-        ALOGW("Can not set a master volume (%f) outside [0,1]", volume);
++        ALOGW("Invalid volume level (%f), must be in range [0,1]", volume);
+         return Result::INVALID_ARGUMENTS;
+     }
+     return analyzeStatus("set_master_volume", mDevice->set_master_volume(mDevice, volume));
+diff --git a/audio/core/all-versions/default/include/core/all-versions/default/PrimaryDevice.impl.h b/audio/core/all-versions/default/include/core/all-versions/default/PrimaryDevice.impl.h
+index f269dd4..44962c8 100644
+--- a/audio/core/all-versions/default/include/core/all-versions/default/PrimaryDevice.impl.h
++++ b/audio/core/all-versions/default/include/core/all-versions/default/PrimaryDevice.impl.h
+@@ -36,6 +36,10 @@ Return<Result> PrimaryDevice::initCheck() {
+ }
+ 
+ Return<Result> PrimaryDevice::setMasterVolume(float volume) {
++    if (mDevice == nullptr) {
++        ALOGW("setMasterVolume called, but mDevice is NULL");
++        return Result::NOT_SUPPORTED;
++    }
+     return mDevice->setMasterVolume(volume);
+ }
+ 
+-- 
+2.25.1
+
