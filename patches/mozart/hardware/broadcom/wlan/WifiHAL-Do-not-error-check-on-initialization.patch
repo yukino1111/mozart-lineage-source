@@ -1,0 +1,64 @@
+From 1571a07f564f0b6ca00d755aa82a35ba6439cac6 Mon Sep 17 00:00:00 2001
+From: schwienernitzel <pfelix0803@gmail.com>
+Date: Fri, 16 May 2025 21:54:34 +0200
+Subject: [PATCH] Broadcom: WifiHAL: Do not error check on initialization in
+ Wifi HAL
+
+* Reverts this: https://github.com/LineageOS/android_hardware_broadcom_wlan/commit/583e62fe04ed3e4a56da9d6a561e1b4c980d6dc6#diff-25b6feb10a0b861e0312173e7de5b8a230f61d8eddd640e86cb712d7447159fdL263
+
+Change-Id: Id13f0d22dc5d99f728ee9baff42499b55584a9f8
+Signed-off-by: schwienernitzel <pfelix0803@gmail.com>
+---
+ bcmdhd/wifi_hal/wifi_hal.cpp | 28 +++++-----------------------
+ 1 file changed, 5 insertions(+), 23 deletions(-)
+
+diff --git a/bcmdhd/wifi_hal/wifi_hal.cpp b/bcmdhd/wifi_hal/wifi_hal.cpp
+index 81cad8a..67d77ba 100644
+--- a/bcmdhd/wifi_hal/wifi_hal.cpp
++++ b/bcmdhd/wifi_hal/wifi_hal.cpp
+@@ -287,27 +287,12 @@ wifi_error wifi_initialize(wifi_handle *handle)
+ 
+     *handle = (wifi_handle) info;
+ 
+-    if (wifi_init_interfaces(*handle) != WIFI_SUCCESS) {
+-        ALOGE("No wifi interface found");
+-        nl_socket_free(cmd_sock);
+-        nl_socket_free(event_sock);
+-        pthread_mutex_destroy(&info->cb_lock);
+-        free(info);
+-        return WIFI_ERROR_NOT_AVAILABLE;
+-    }
+-
+-    if ((wifi_add_membership(*handle, "scan") < 0) ||
+-        (wifi_add_membership(*handle, "mlme")  < 0) ||
+-        (wifi_add_membership(*handle, "regulatory") < 0) ||
+-        (wifi_add_membership(*handle, "vendor") < 0)) {
+-        ALOGE("Add membership failed");
+-        nl_socket_free(cmd_sock);
+-        nl_socket_free(event_sock);
+-        pthread_mutex_destroy(&info->cb_lock);
+-        free(info);
+-        return WIFI_ERROR_NOT_AVAILABLE;
+-    }
++    wifi_add_membership(*handle, "scan");
++    wifi_add_membership(*handle, "mlme");
++    wifi_add_membership(*handle, "regulatory");
++    wifi_add_membership(*handle, "vendor");
+ 
++    wifi_init_interfaces(*handle);
+     // ALOGI("Found %d interfaces", info->num_interfaces);
+ 
+     ALOGI("Initialized Wifi HAL Successfully; vendor cmd = %d", NL80211_CMD_VENDOR);
+@@ -1202,9 +1187,6 @@ wifi_error wifi_init_interfaces(wifi_handle handle)
+ 
+     closedir(d);
+ 
+-    if (n == 0)
+-        return WIFI_ERROR_NOT_AVAILABLE;
+-
+     d = opendir("/sys/class/net");
+     if (d == 0)
+         return WIFI_ERROR_UNKNOWN;
+-- 
+2.25.1
+
