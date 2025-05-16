@@ -37,7 +37,7 @@ on boot
     chown system system /dev/vio
 
 service macaddr /vendor/bin/mac_addr_normalization
-    class core
+    class late_start
     user root
     group root bluetooth bluetooth wifi
     oneshot
