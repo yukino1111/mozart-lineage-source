@@ -171,5 +171,17 @@ PRODUCT_PACKAGES += \
     android.hardware.vibrator@1.0-impl \
     android.hardware.vibrator@1.0-service
 
+# Wifi
+PRODUCT_PACKAGES += \
+    libwpa_client \
+    hostapd \
+    wpa_supplicant \
+    wpa_supplicant.conf
+
+PRODUCT_PACKAGES += \
+    android.hardware.wifi@1.0-service
+
+include hardware/broadcom/wlan/bcmdhd/config/config-bcm.mk
+
 ## Inherit vendor blobs
 $(call inherit-product, vendor/huawei/mozart/mozart-vendor.mk)
