@@ -1,3 +1,7 @@
+on early-init
+    setprop ro.connectivity.sta_p2p_coex false
+    setprop wifi.interface wlan0
+
 post-fs-data
     chown wifi wifi /data/misc/wifi/p2p_supplicant.conf
     chmod 0660 /data/misc/wifi/p2p_supplicant.conf
@@ -27,8 +31,6 @@ on boot
     chmod 664 /proc/bluetooth/sleep/btwrite
     chown bluetooth bluetooth /proc/bluetooth/sleep/btwake
     chmod 664 /proc/bluetooth/sleep/btwake
-
-    setprop wifi.interface wlan0
 
     chown system system /sys/module/bcmdhd/parameters/dhd_console_ms
     chown system system /sys/devices/platform/bcmdhd_wlan.1/wifi_arp_timeout
