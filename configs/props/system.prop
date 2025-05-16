@@ -48,6 +48,3 @@ ro.config.hw_sensorhub=true
 
 # USB
 persist.sys.usb.config.extra=none
-
-# Wifi
-wifi.interface=wlan0
