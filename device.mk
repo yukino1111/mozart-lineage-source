@@ -37,6 +37,10 @@ PRODUCT_PACKAGES += \
     android.hardware.bluetooth@1.0-impl \
     android.hardware.bluetooth@1.0-service
 
+# Carrier
+PRODUCT_PROPERTY_OVERRIDES += \
+    ro.carrier=wifi-only
+
 # Configstore
 PRODUCT_PACKAGES += \
     android.hardware.configstore@1.0-service
