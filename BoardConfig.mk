@@ -100,6 +100,10 @@ TARGET_SYSTEM_PROP := $(DEVICE_PATH)/configs/props/system.prop
 # Recovery
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/rootdir/fstab.hi3635
 
+# Shims
+TARGET_LD_SHIM_LIBS := \
+    /system/vendor/lib64/sensorhub.hi3635.so|libshim_log.so
+
 # SELinux
 BOARD_PLAT_PRIVATE_SEPOLICY_DIR += $(DEVICE_PATH)/sepolicy
 

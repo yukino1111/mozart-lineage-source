@@ -162,6 +162,10 @@ PRODUCT_COPY_FILES += \
 TARGET_SCREEN_HEIGHT := 1920
 TARGET_SCREEN_WIDTH := 1200
 
+# Shims
+PRODUCT_PACKAGES += \
+    libshim_log
+
 # USB
 PRODUCT_PACKAGES += \
     android.hardware.usb@1.0-service.basic
