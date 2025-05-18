@@ -58,16 +58,6 @@ void set_ro_build_prop(const string &prop, const string &value, bool product = t
     }
 }
 
-void fix_fingerprints(std::string model) {
-    if (model.find("ALE") != std::string::npos) {
-        set_ro_build_prop("fingerprint", "Huawei/ALE-L21/hwALE-H:6.0/HuaweiALE-L21/C432B596:user/release-keys", false);
-        set_ro_build_prop("description", "ALE-L21-user 6.0 HuaweiALE-L21 C432B596 release-keys", false);
-    } else if (model.find("CAM") != std::string::npos) {
-        set_ro_build_prop("fingerprint", "HUAWEI/CAM-L21/HWCAM-H:6.0/HUAWEICAM-L21/C900B197:user/release-keys", false);
-        set_ro_build_prop("description", "CAM-L21-user 6.0 HUAWEICAM-L21 C900B197 release-keys", false);
-    }
-}
-
 void vendor_load_properties() {
     std::string model;
 
@@ -81,5 +71,6 @@ void vendor_load_properties() {
         }
     }
 
-    fix_fingerprints(model);
+    set_ro_build_prop("fingerprint", "Huawei/MOZART/hi3635:6.0/MRA58K/huawei11291304:user/test-keys", false);
+    set_ro_build_prop("description", "MOZART-user 6.0 MRA58K eng.huawei.20161129.130256 test-keys", false);
 }
