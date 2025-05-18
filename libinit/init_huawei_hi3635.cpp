@@ -24,7 +24,7 @@
 #include "vendor_init.h"
 #include "property_service.h"
 
-#define PRODUCT_NAME "/sys/firmware/devicetree/base/boardinfo/normal_product_name"
+#define PRODUCT_NAME "sys/firmware/devicetree/base/hisi,boardname"
 
 std::string kPartitionMap[] = {
         "", "vrl", "vrl_bkup", "mcuimage", "reserved0", "fastboot",
