@@ -11,8 +11,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include <filesystem>
-
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
@@ -25,16 +23,6 @@
 #include "property_service.h"
 
 #define PRODUCT_NAME "sys/firmware/devicetree/base/hisi,boardname"
-
-std::string kPartitionMap[] = {
-        "", "vrl", "vrl_bkup", "mcuimage", "reserved0", "fastboot",
-        "modemnvbkup", "nvme", "oeminfo", "splash", "modemnvm1",
-        "modemnvm2", "modemnvm3", "securetystorage", "3rdmodemnvm", "3rdmodemnvmback",
-        "reserved1", "modemlog", "splash2", "misc", "modemnvreserved", "recovery2",
-        "reserved2", "teeos", "trustfirmware", "sensorhub", "hifi", "boot", "recovery",
-        "dtimage", "modemimage", "dsp", "dfx", "3rdmodem", "cache", "hisitest0", "hisitest1",
-        "hisitest2", "system", "cust", "userdata"
-};
 
 using android::base::GetProperty;
 using std::string;
@@ -70,29 +58,6 @@ void set_ro_build_prop(const string &prop, const string &value, bool product = t
     }
 }
 
-void fix_symlinks() {
-    const std::string kPathPrefix = "/dev/block/mmcblk0p";
-    const std::string kLinkPrefix = "/dev/block/platform/hi_mci.0/by-name";
-
-    if (access(kLinkPrefix.c_str(), F_OK) != 0) {
-        if (!std::filesystem::create_directories(kLinkPrefix)) {
-            LOG(ERROR) << "Failed to create directory: " << kLinkPrefix;
-            return;
-        }
-    }
-
-    for (int i = 1; i < sizeof(kPartitionMap)/sizeof(kPartitionMap[0]); ++i) {
-        std::string path = kPathPrefix + std::to_string(i);
-        std::string link = kLinkPrefix + "/" + kPartitionMap[i];
-
-        if (symlink(path.c_str(), link.c_str()) != 0) {
-            LOG(ERROR) << "Failed to create symlink: " << path << " -> " << link;
-        } else {
-            LOG(INFO) << "Created symlink: " << path << " -> " << link;
-        }
-    }
-}
-
 void fix_fingerprints(std::string model) {
     if (model.find("ALE") != std::string::npos) {
         set_ro_build_prop("fingerprint", "Huawei/ALE-L21/hwALE-H:6.0/HuaweiALE-L21/C432B596:user/release-keys", false);
@@ -117,5 +82,4 @@ void vendor_load_properties() {
     }
 
     fix_fingerprints(model);
-    fix_symlinks();
 }
