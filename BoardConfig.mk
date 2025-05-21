@@ -36,6 +36,9 @@ TARGET_BOOTLOADER_BOARD_NAME := hi3635
 TARGET_NO_BOOTLOADER := true
 TARGET_NO_RADIOIMAGE := true
 
+# Charger
+BACKLIGHT_PATH := /sys/class/leds/lcd_backlight0/brightness
+
 # Dexpreopt
 ifeq ($(HOST_OS),linux)
   ifneq ($(TARGET_BUILD_VARIANT),eng)
