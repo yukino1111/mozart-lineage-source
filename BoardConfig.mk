@@ -109,6 +109,7 @@ TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/rootdir/fstab.hi3635
 
 # Shims
 TARGET_LD_SHIM_LIBS := \
+    /system/bin/glgps4752|libshim_gui.so \
     /system/vendor/lib64/sensorhub.hi3635.so|libshim_log.so
 
 # SELinux

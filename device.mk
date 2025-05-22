@@ -174,6 +174,7 @@ TARGET_SCREEN_WIDTH := 1200
 
 # Shims
 PRODUCT_PACKAGES += \
+    libshim_gui \
     libshim_log
 
 # USB
