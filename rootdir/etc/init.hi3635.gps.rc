@@ -8,6 +8,9 @@ on post-fs-data
 on boot
     chmod 660 /dev/ttyAMA3
 
+    chown root system /data/gps/gpsconfig.xml
+    chmod 644 /data/gps/gpsconfig.xml
+
 service gpsdaemon /system/bin/gpsdaemon
     class late_start
     oneshot
