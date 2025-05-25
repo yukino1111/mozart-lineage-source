@@ -1,0 +1,126 @@
+From 6050cae15974332b704e3869e9ac234f47517eea Mon Sep 17 00:00:00 2001
+From: schwienernitzel <pfelix0803@gmail.com>
+Date: Sun, 25 May 2025 14:53:22 +0200
+Subject: [PATCH] SystemUI: Use screencap as workaround for screenshots
+
+Change-Id: Iccf6265b84fb31714ef8f46f667752e46c027b72
+Signed-off-by: schwienernitzel <pfelix0803@gmail.com>
+---
+ .../screenshot/TakeScreenshotService.java     | 70 +++++++++++--------
+ 1 file changed, 42 insertions(+), 28 deletions(-)
+
+diff --git a/packages/SystemUI/src/com/android/systemui/screenshot/TakeScreenshotService.java b/packages/SystemUI/src/com/android/systemui/screenshot/TakeScreenshotService.java
+index 34b8bfe5..1137f6f9 100644
+--- a/packages/SystemUI/src/com/android/systemui/screenshot/TakeScreenshotService.java
++++ b/packages/SystemUI/src/com/android/systemui/screenshot/TakeScreenshotService.java
+@@ -20,58 +20,73 @@ import android.app.Service;
+ import android.content.Intent;
+ import android.os.Handler;
+ import android.os.IBinder;
++import android.os.Looper;
+ import android.os.Message;
+ import android.os.Messenger;
+ import android.os.RemoteException;
+ import android.os.UserManager;
+ import android.util.Log;
+-import android.view.WindowManager;
++import android.widget.Toast;
++
++import java.io.IOException;
+ 
+ public class TakeScreenshotService extends Service {
+     private static final String TAG = "TakeScreenshotService";
+ 
+-    private static GlobalScreenshot mScreenshot;
+-
+     private Handler mHandler = new Handler() {
+         @Override
+         public void handleMessage(Message msg) {
+             final Messenger callback = msg.replyTo;
+-            Runnable finisher = new Runnable() {
+-                @Override
+-                public void run() {
+-                    Message reply = Message.obtain(null, 1);
+-                    try {
+-                        callback.send(reply);
+-                    } catch (RemoteException e) {
+-                    }
++            Runnable finisher = () -> {
++                Message reply = Message.obtain(null, 1);
++                try {
++                    callback.send(reply);
++                } catch (RemoteException e) {
++                    Log.e(TAG, "Failed to reply to callback", e);
+                 }
+             };
+ 
+-            // If the storage for this user is locked, we have no place to store
+-            // the screenshot, so skip taking it instead of showing a misleading
+-            // animation and error notification.
++            // Check if storage is unlocked for this user.
+             if (!getSystemService(UserManager.class).isUserUnlocked()) {
+                 Log.w(TAG, "Skipping screenshot because storage is locked!");
+                 post(finisher);
+                 return;
+             }
+ 
+-            if (mScreenshot == null) {
+-                mScreenshot = new GlobalScreenshot(TakeScreenshotService.this);
++            takeScreenshotShell(finisher);
++        }
++    };
++
++    private void takeScreenshotShell(Runnable finisher) {
++        new Thread(() -> {
++            try {
++                String path = "/sdcard/Pictures/screenshot_" + System.currentTimeMillis() + ".png";
++                java.lang.Process process = Runtime.getRuntime().exec(new String[]{
++                        "sh", "-c", "screencap -p " + path
++                });
++                int result = process.waitFor();
++                Log.d(TAG, "screencap finished with code: " + result);
++
++                if (result == 0) {
++                    showToast("Screenshot saved: " + path);
++                } else {
++                    showToast("Screenshot failed (Code " + result + ")");
++                }
++            } catch (IOException | InterruptedException e) {
++                Log.e(TAG, "Screenshot failed", e);
++                showToast("Screenshot failed");
+             }
+ 
+-            switch (msg.what) {
+-                case WindowManager.TAKE_SCREENSHOT_FULLSCREEN:
+-                    mScreenshot.takeScreenshot(finisher, msg.arg1 > 0, msg.arg2 > 0);
+-                    break;
+-                case WindowManager.TAKE_SCREENSHOT_SELECTED_REGION:
+-                    mScreenshot.takeScreenshotPartial(finisher, msg.arg1 > 0, msg.arg2 > 0);
+-                    break;
+-                default:
+-                    Log.d(TAG, "Invalid screenshot option: " + msg.what);
++            if (finisher != null) {
++                finisher.run();
+             }
+-        }
+-    };
++        }).start();
++    }
++
++    private void showToast(String text) {
++        new Handler(Looper.getMainLooper()).post(() ->
++                Toast.makeText(getApplicationContext(), text, Toast.LENGTH_SHORT).show());
++    }
+ 
+     @Override
+     public IBinder onBind(Intent intent) {
+@@ -80,7 +95,6 @@ public class TakeScreenshotService extends Service {
+ 
+     @Override
+     public boolean onUnbind(Intent intent) {
+-        if (mScreenshot != null) mScreenshot.stopScreenshot();
+         return true;
+     }
+ }
+-- 
+2.25.1
