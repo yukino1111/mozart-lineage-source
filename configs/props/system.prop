@@ -50,6 +50,7 @@ ro.config.hw_sensorhub=true
 
 # Surfaceflinger
 debug.sf.disable_backpressure=1
+debug.sf.latch_unsignaled=1
 
 # USB
 persist.sys.usb.config.extra=none
