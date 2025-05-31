@@ -48,5 +48,8 @@ ro.sys.sdcardfs=true
 # Sensors
 ro.config.hw_sensorhub=true
 
+# Surfaceflinger
+debug.sf.disable_backpressure=1
+
 # USB
 persist.sys.usb.config.extra=none
