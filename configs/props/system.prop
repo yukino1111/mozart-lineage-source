@@ -34,6 +34,10 @@ ro.hwui.text_large_cache_width=2048
 ro.hwui.text_large_cache_height=1024
 debug.hwui.use_partial_updates=false
 debug.hwui.use_buffer_age=false
+debug.hwui.renderer=opengl
+debug.hwui.disable_draw_reorder=true
+debug.hwui.disable_draw_defer=true
+debug.hwui.skip_empty_damage=false
 
 # Media
 media.stagefright.use-awesome=false
