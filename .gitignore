@@ -1,0 +1,3 @@
+/proprietary-blobs/**
+*.so
+*.so.*

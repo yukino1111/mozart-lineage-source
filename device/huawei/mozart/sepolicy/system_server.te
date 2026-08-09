@@ -1,0 +1,4 @@
+allow system_server sensors_device:chr_file rw_file_perms;
+allow system_server mozart_gps_data_file:dir search;
+allow system_server mozart_gps_data_file:fifo_file rw_file_perms;
+allow system_server mozart_sensors_data_file:file { rw_file_perms setattr };

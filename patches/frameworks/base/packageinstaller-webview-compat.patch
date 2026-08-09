@@ -1,0 +1,51 @@
+diff --git a/services/core/java/com/android/server/pm/PackageInstallerSession.java b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+index e6ec80ae..58a5275b 100644
+--- a/services/core/java/com/android/server/pm/PackageInstallerSession.java
++++ b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+@@ -697,8 +697,12 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
+             // If caller specified a total length, allocate it for them. Free up
+             // cache space to grow, if needed.
+             if (stageDir != null && lengthBytes > 0) {
+-                mContext.getSystemService(StorageManager.class).allocateBytes(targetFd, lengthBytes,
+-                        PackageHelper.translateAllocateFlags(params.installFlags));
++                try {
++                    mContext.getSystemService(StorageManager.class).allocateBytes(targetFd, lengthBytes,
++                            PackageHelper.translateAllocateFlags(params.installFlags));
++                } catch (IOException e) {
++                    Slog.w(TAG, "Failed to preallocate session bytes; continuing", e);
++                }
+             }
+ 
+             if (offsetBytes > 0) {
+diff --git a/services/core/java/com/android/server/webkit/SystemImpl.java b/services/core/java/com/android/server/webkit/SystemImpl.java
+index f77eae9b..58b388c3 100644
+--- a/services/core/java/com/android/server/webkit/SystemImpl.java
++++ b/services/core/java/com/android/server/webkit/SystemImpl.java
+@@ -29,6 +29,7 @@ import android.content.res.XmlResourceParser;
+ import android.database.ContentObserver;
+ import android.os.Build;
+ import android.os.RemoteException;
++import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.os.UserManager;
+ import android.provider.Settings.Global;
+@@ -62,6 +63,8 @@ public class SystemImpl implements SystemInterface {
+     private static final String TAG_AVAILABILITY = "availableByDefault";
+     private static final String TAG_SIGNATURE = "signature";
+     private static final String TAG_FALLBACK = "isFallback";
++    private static final String PROP_WEBVIEW_MULTIPROCESS_DEFAULT =
++            "ro.webview.multiprocess_default";
+     private final WebViewProviderInfo[] mWebViewProviderPackages;
+ 
+     // Initialization-on-demand holder idiom for getting the WebView provider packages once and
+@@ -297,6 +300,10 @@ public class SystemImpl implements SystemInterface {
+ 
+     @Override
+     public boolean isMultiProcessDefaultEnabled() {
++        if (!SystemProperties.getBoolean(PROP_WEBVIEW_MULTIPROCESS_DEFAULT, true)) {
++            return false;
++        }
++
+         // Multiprocess is enabled for all 64-bit devices, since the ability to run the renderer
+         // process in 32-bit when it's a separate process typically results in a net memory saving.
+         // Multiprocess is also enabled for 32-bit devices unless they report they are "low ram".

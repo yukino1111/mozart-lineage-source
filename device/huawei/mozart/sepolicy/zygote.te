@@ -1,0 +1,3 @@
+# The legacy 3.10 kernel exposes mount namespace inodes through procfs.
+# Limit the compatibility exception to opening and receiving namespace fds.
+allow zygote proc:file { open read };

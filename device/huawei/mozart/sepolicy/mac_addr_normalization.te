@@ -1,0 +1,22 @@
+# mac_addr_normalization daemon
+type mac_addr_normalization, domain;
+type mac_addr_normalization_exec, exec_type, file_type, vendor_file_type;
+type mac_addr_normalization_vendor_exec, exec_type, file_type, vendor_file_type;
+
+# Started by init
+init_daemon_domain(mac_addr_normalization)
+
+# Preserve Huawei's NVM lookup before using the persistent local fallback.
+allow mac_addr_normalization mac_addr_normalization_vendor_exec:file rx_file_perms;
+allow mac_addr_normalization mozart_oeminfo_device_dir:dir rw_dir_perms;
+allow mac_addr_normalization mozart_oeminfo_device_dir:sock_file create_file_perms;
+allow mac_addr_normalization mozart_oeminfo_socket:sock_file write;
+allow mac_addr_normalization oeminfo_nvm:unix_dgram_socket sendto;
+get_prop(mac_addr_normalization, exported_bluetooth_prop)
+
+# Some mozart variants ship without MACBT/MACWLAN NVM records.
+allow mac_addr_normalization self:capability chown;
+allow mac_addr_normalization bluetooth_data_file:dir rw_dir_perms;
+allow mac_addr_normalization bluetooth_data_file:file create_file_perms;
+allow mac_addr_normalization wifi_data_file:dir rw_dir_perms;
+allow mac_addr_normalization wifi_data_file:file create_file_perms;

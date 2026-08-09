@@ -1,0 +1,1 @@
+allow oeminfo_nvm mozart_nve_device:chr_file rw_file_perms;

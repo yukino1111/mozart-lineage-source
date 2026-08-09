@@ -1,0 +1,22 @@
+# oeminfo_nvm daemon
+type oeminfo_nvm, domain;
+type oeminfo_nvm_exec, exec_type, file_type;
+
+# Started by init
+init_daemon_domain(oeminfo_nvm)
+
+# /sbin lives on rootfs during early boot; oeminfo_nvm starts before these
+# ramdisk files can be relabeled to their *_exec context.
+allow oeminfo_nvm rootfs:file { getattr open read execute map entrypoint };
+
+allow oeminfo_nvm properties_device:dir r_dir_perms;
+
+# oeminfo_nvm creates its own /dev/socket/oeminfo_nvm endpoint instead of
+# declaring an init-managed socket.
+allow oeminfo_nvm device:dir { getattr search write add_name };
+allow oeminfo_nvm mozart_oeminfo_device_dir:dir create_dir_perms;
+allow oeminfo_nvm socket_device:dir rw_dir_perms;
+allow oeminfo_nvm mozart_oeminfo_socket:sock_file create_file_perms;
+allow oeminfo_nvm self:capability { chown fsetid };
+type_transition oeminfo_nvm device:dir mozart_oeminfo_device_dir "oinv";
+type_transition oeminfo_nvm socket_device:sock_file mozart_oeminfo_socket "oeminfo_nvm";

@@ -1,0 +1,39 @@
+diff --git a/init/Android.bp b/init/Android.bp
+index 3287331..ea24a5b 100644
+--- a/init/Android.bp
++++ b/init/Android.bp
+@@ -27,10 +27,10 @@ cc_defaults {
+         "-Wno-unused-parameter",
+         "-Werror",
+         "-DALLOW_LOCAL_PROP_OVERRIDE=1",
+-        "-DALLOW_PERMISSIVE_SELINUX=0",
+-        "-DREBOOT_BOOTLOADER_ON_PANIC=0",
++        "-DALLOW_PERMISSIVE_SELINUX=1",
++        "-DREBOOT_BOOTLOADER_ON_PANIC=1",
+         "-DWORLD_WRITABLE_KMSG=0",
+-        "-DDUMP_ON_UMOUNT_FAILURE=0",
++        "-DDUMP_ON_UMOUNT_FAILURE=1",
+         "-DSHUTDOWN_ZERO_TIMEOUT=0",
+     ],
+     product_variables: {
+diff --git a/init/Android.mk b/init/Android.mk
+index 2295bd7..679e96e 100644
+--- a/init/Android.mk
++++ b/init/Android.mk
+@@ -20,6 +20,16 @@ init_options += \
+     -DDUMP_ON_UMOUNT_FAILURE=0
+ endif
+ 
++ifeq ($(TARGET_DEVICE),mozart)
++init_options += \
++    -UALLOW_PERMISSIVE_SELINUX \
++    -DALLOW_PERMISSIVE_SELINUX=1 \
++    -UREBOOT_BOOTLOADER_ON_PANIC \
++    -DREBOOT_BOOTLOADER_ON_PANIC=1 \
++    -UDUMP_ON_UMOUNT_FAILURE \
++    -DDUMP_ON_UMOUNT_FAILURE=1
++endif
++
+ ifneq (,$(filter eng,$(TARGET_BUILD_VARIANT)))
+ init_options += \
+     -DSHUTDOWN_ZERO_TIMEOUT=1

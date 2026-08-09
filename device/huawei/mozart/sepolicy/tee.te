@@ -1,0 +1,5 @@
+# /sbin lives on rootfs during early boot; teecd uses the platform tee domain
+# and starts before the ramdisk executable can be relabeled to tee_exec.
+allow tee rootfs:file { getattr open read execute map entrypoint };
+
+allow tee properties_device:dir r_dir_perms;

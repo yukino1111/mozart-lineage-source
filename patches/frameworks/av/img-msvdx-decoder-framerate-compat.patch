@@ -1,0 +1,88 @@
+diff --git a/media/libstagefright/ACodec.cpp b/media/libstagefright/ACodec.cpp
+index 014dfa9..b65cd9a 100644
+--- a/media/libstagefright/ACodec.cpp
++++ b/media/libstagefright/ACodec.cpp
+@@ -68,6 +68,34 @@ enum {
+     kMaxIndicesToCheck = 32, // used when enumerating supported formats and profiles
+ };
+ 
++static bool isLegacyImgMsvdxDecoder(const AString &componentName) {
++    return componentName.startsWith("OMX.IMG.MSVDX.Decoder.");
++}
++
++static OMX_U32 makeVideoPortFramerate(const AString &componentName, float frameRate) {
++    if (!isLegacyImgMsvdxDecoder(componentName)) {
++        return (OMX_U32)(frameRate * 65536.0f);
++    }
++
++    // Old Huawei/IMG MSVDX blobs reject normal OMX Q16 framerates as
++    // unreasonable. They expect millifps-style values, capped at 60fps.
++    if (frameRate <= 0.0f) {
++        return 0;
++    }
++    if (frameRate > 60.0f) {
++        frameRate = 60.0f;
++    }
++    return (OMX_U32)(frameRate * 1000.0f + 0.5f);
++}
++
++static OMX_U32 convertQ16FramerateToLegacyMillifps(OMX_U32 xFramerate) {
++    float frameRate = (float)xFramerate / 65536.0f;
++    if (frameRate > 60.0f) {
++        frameRate = 60.0f;
++    }
++    return (OMX_U32)(frameRate * 1000.0f + 0.5f);
++}
++
+ // OMX errors are directly mapped into status_t range if
+ // there is no corresponding MediaError status code.
+ // Use the statusFromOMXError(int32_t omxError) function.
+@@ -3160,6 +3188,15 @@ status_t ACodec::setVideoPortFormatType(
+         return UNKNOWN_ERROR;
+     }
+ 
++    if (isLegacyImgMsvdxDecoder(mComponentName) &&
++            portIndex == kPortIndexInput &&
++            format.xFramerate > 60000) {
++        OMX_U32 oldFramerate = format.xFramerate;
++        format.xFramerate = convertQ16FramerateToLegacyMillifps(format.xFramerate);
++        ALOGI("[%s] converting video port xFramerate from Q16 %u to legacy %u",
++              mComponentName.c_str(), oldFramerate, format.xFramerate);
++    }
++
+     status_t err = mOMXNode->setParameter(
+             OMX_IndexParamVideoPortFormat, &format, sizeof(format));
+ 
+@@ -4785,7 +4822,11 @@ status_t ACodec::setVideoFormatOnPort(
+         video_def->eCompressionFormat = compressionFormat;
+         video_def->eColorFormat = OMX_COLOR_FormatUnused;
+         if (frameRate >= 0) {
+-            video_def->xFramerate = (OMX_U32)(frameRate * 65536.0f);
++            video_def->xFramerate = makeVideoPortFramerate(mComponentName, frameRate);
++            if (isLegacyImgMsvdxDecoder(mComponentName)) {
++                ALOGI("[%s] using legacy decoder xFramerate=%u for %.3f fps",
++                      mComponentName.c_str(), video_def->xFramerate, frameRate);
++            }
+         }
+     }
+ 
+diff --git a/media/libstagefright/omx/OMXUtils.cpp b/media/libstagefright/omx/OMXUtils.cpp
+index f7b569d..b0dec51 100644
+--- a/media/libstagefright/omx/OMXUtils.cpp
++++ b/media/libstagefright/omx/OMXUtils.cpp
+@@ -318,6 +318,10 @@ bool DescribeColorFormat(
+         const sp<IOMXNode> &omxNode,
+         DescribeColorFormat2Params &describeParams)
+ {
++    if (DescribeDefaultColorFormat(describeParams)) {
++        return true;
++    }
++
+     OMX_INDEXTYPE describeColorFormatIndex;
+     if (omxNode->getExtensionIndex(
+             "OMX.google.android.index.describeColorFormat",
+@@ -383,4 +387,3 @@ bool IsFlexibleColorFormat(
+ }
+ 
+ }  // namespace android
+-

@@ -1,0 +1,7 @@
+allow kernel self:global_capability_class_set mknod;
+allow kernel device:dir { write add_name remove_name };
+allow kernel device:chr_file { create getattr setattr unlink };
+allow kernel device:blk_file { create getattr setattr unlink };
+allow kernel mozart_hwlog_device:chr_file { open write };
+allow kernel mozart_sysfs_devfreq:file rw_file_perms;
+allow kernel sysfs_devices_system_cpu:file w_file_perms;

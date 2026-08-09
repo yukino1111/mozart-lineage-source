@@ -1,0 +1,13 @@
+# gpsd_4752 daemon
+type gpsd, domain;
+type gpsd_exec, exec_type, file_type;
+
+# Started by init
+init_daemon_domain(gpsd)
+
+allow domain gpsd_exec:file getattr;
+
+allow gpsd self:netlink_kobject_uevent_socket create_socket_perms_no_ioctl;
+allow gpsd mozart_gps_data_file:dir r_dir_perms;
+allow gpsd mozart_gps_data_file:file r_file_perms;
+allow gpsd mozart_gps_data_file:fifo_file create_file_perms;

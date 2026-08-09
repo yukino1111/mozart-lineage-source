@@ -1,0 +1,51 @@
+diff --git a/services/core/java/com/android/server/location/GnssGeofenceProvider.java b/services/core/java/com/android/server/location/GnssGeofenceProvider.java
+index 6ac4aeb7..47199af4 100644
+--- a/services/core/java/com/android/server/location/GnssGeofenceProvider.java
++++ b/services/core/java/com/android/server/location/GnssGeofenceProvider.java
+@@ -12,6 +12,8 @@ import com.android.internal.annotations.VisibleForTesting;
+ import java.util.concurrent.Callable;
+ import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.FutureTask;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
+ 
+ /**
+  * Manages GNSS Geofence operations.
+@@ -20,6 +22,7 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+ 
+     private static final String TAG = "GnssGeofenceProvider";
+     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
++    private static final long NATIVE_CALL_TIMEOUT_MILLIS = 5000;
+ 
+     /** Holds the parameters of a geofence. */
+     private static class GeofenceEntry {
+@@ -69,12 +72,27 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+     }
+ 
+     private boolean runOnHandlerThread(Callable<Boolean> callable) {
++        if (Looper.myLooper() == mHandler.getLooper()) {
++            try {
++                return callable.call();
++            } catch (Exception e) {
++                Log.e(TAG, "Failed running callable.", e);
++            }
++            return false;
++        }
++
+         FutureTask<Boolean> futureTask = new FutureTask<>(callable);
+         mHandler.post(futureTask);
+         try {
+-            return futureTask.get();
+-        } catch (InterruptedException | ExecutionException e) {
++            return futureTask.get(NATIVE_CALL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            Log.e(TAG, "Interrupted running callable.", e);
++        } catch (ExecutionException e) {
+             Log.e(TAG, "Failed running callable.", e);
++        } catch (TimeoutException e) {
++            Log.e(TAG, "Timed out running callable after "
++                    + NATIVE_CALL_TIMEOUT_MILLIS + " ms.", e);
+         }
+         return false;
+     }

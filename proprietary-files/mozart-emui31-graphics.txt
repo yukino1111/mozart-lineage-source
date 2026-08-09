@@ -1,0 +1,13 @@
+# EMUI 3.1 graphics blobs used by the tested mozart build.
+#
+# Paths are relative to a stock /system extraction. The extraction script also
+# accepts the local ignored cache layout under proprietary-blobs/huawei/mozart.
+#
+# These files are proprietary vendor binaries. Do not commit them to this
+# public patch repository.
+lib/hw/copybit.hi3635.so;sha1=497bd7a7af2a1f13db5fb05c047d0d1e544001d9
+lib/hw/gralloc.hi3635.so;sha1=532c572fa8ebb29878e0c7fd31e54e7d868efdd4
+lib64/hw/copybit.hi3635.so;sha1=2a918be4264ca08de186911d9b6c0f912f4c1919
+lib64/hw/gralloc.hi3635.so;sha1=e0f0c4dad7217b1b40a4b7232b675da10e8eaaeb
+vendor/lib/egl/libGLES_mali.so;sha1=088be1a4f347f977067df429c140d22b9d4d1b3e
+vendor/lib64/egl/libGLES_mali.so;sha1=3d654321d0924c174f889db979e5409bf88c5f43

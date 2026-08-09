@@ -1,0 +1,2 @@
+# Bionic resolves /proc/self/exe and enables RELRO on the shell interpreter.
+allow sysinit shell_exec:file { getattr read };

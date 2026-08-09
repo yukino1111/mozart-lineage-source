@@ -1,0 +1,13 @@
+diff --git a/mozart-vendor.mk b/mozart-vendor.mk
+index 21d5e73..dea574a 100644
+--- a/mozart-vendor.mk
++++ b/mozart-vendor.mk
+@@ -42,7 +42,7 @@ PRODUCT_COPY_FILES += \
+     $(VENDOR_PATH)/vendor/firmware/nvram4339_hw_mozart_l.txt:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/nvram4339_hw_mozart_l.txt \
+     $(VENDOR_PATH)/vendor/firmware/fw_bcm4339_apsta_hw.bin:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/fw_bcm4339_apsta_hw.bin \
+     $(VENDOR_PATH)/vendor/firmware/BCM4334B0_002.001.013.1837.2355.hcd:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/BCM4334B0_002.001.013.1837.2355.hcd \
+-    $(VENDOR_PATH)/vendor/bin/mac_addr_normalization:$(TARGET_COPY_OUT_SYSTEM)/vendor/bin/mac_addr_normalization \
++    $(VENDOR_PATH)/vendor/bin/mac_addr_normalization:$(TARGET_COPY_OUT_SYSTEM)/vendor/bin/mac_addr_normalization_vendor \
+     $(VENDOR_PATH)/lib64/liboeminfo.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/liboeminfo.so \
+     $(VENDOR_PATH)/lib64/libtfa9895.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libtfa9895.so \
+     $(VENDOR_PATH)/lib64/lib_nve_operation.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/lib_nve_operation.so \

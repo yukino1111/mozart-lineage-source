@@ -1,0 +1,13 @@
+diff --git a/arch/arm64/configs/lineage_mozart_defconfig b/arch/arm64/configs/lineage_mozart_defconfig
+index 468325fd..82ab3dc6 100755
+--- a/arch/arm64/configs/lineage_mozart_defconfig
++++ b/arch/arm64/configs/lineage_mozart_defconfig
+@@ -180,7 +180,7 @@ CONFIG_MAGIC_SYSRQ=y
+ CONFIG_DEBUG_FS=y
+ CONFIG_DEBUG_KERNEL=y
+ # CONFIG_SCHED_DEBUG is not set
+-CONFIG_DEBUG_INFO=y
++# CONFIG_DEBUG_INFO is not set
+ CONFIG_ATOMIC64_SELFTEST=y
+ CONFIG_PRINTK_TIME=y
+ CONFIG_HISI_TIME=y

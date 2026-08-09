@@ -1,0 +1,1009 @@
+diff --git a/graphics/composer/2.1/utils/hwc2onfbadapter/Android.bp b/graphics/composer/2.1/utils/hwc2onfbadapter/Android.bp
+index 73a41f7..fe33df9 100644
+--- a/graphics/composer/2.1/utils/hwc2onfbadapter/Android.bp
++++ b/graphics/composer/2.1/utils/hwc2onfbadapter/Android.bp
+@@ -28,6 +28,6 @@ cc_library_shared {
+     ],
+ 
+     header_libs: ["libhardware_headers"],
+-    shared_libs: ["liblog", "libsync"],
++    shared_libs: ["libcutils", "liblog", "libsync"],
+     export_include_dirs: ["include"],
+ }
+diff --git a/graphics/composer/2.1/utils/hwc2onfbadapter/HWC2OnFbAdapter.cpp b/graphics/composer/2.1/utils/hwc2onfbadapter/HWC2OnFbAdapter.cpp
+index 0f50577..3976990 100644
+--- a/graphics/composer/2.1/utils/hwc2onfbadapter/HWC2OnFbAdapter.cpp
++++ b/graphics/composer/2.1/utils/hwc2onfbadapter/HWC2OnFbAdapter.cpp
+@@ -21,11 +21,18 @@
+ #include "hwc2onfbadapter/HWC2OnFbAdapter.h"
+ 
+ #include <algorithm>
++#include <cmath>
+ #include <type_traits>
+ 
++#include <cutils/properties.h>
++#include <errno.h>
++#include <fcntl.h>
+ #include <inttypes.h>
++#include <stddef.h>
++#include <string.h>
+ #include <time.h>
+ #include <sys/prctl.h>
++#include <sys/ioctl.h>
+ #include <unistd.h> // for close
+ 
+ #include <hardware/fb.h>
+@@ -38,6 +45,340 @@ namespace android {
+ 
+ namespace {
+ 
++constexpr uint32_t kHisiHandleMagic = 0x03141592;
++constexpr uint32_t kHisiMaxLayers = 9;
++constexpr uint32_t kHisiFbIoctlMagic = 'M';
++
++enum HisiPixelFormat {
++    HISI_FB_PIXEL_FORMAT_RGB_565 = 0,
++    HISI_FB_PIXEL_FORMAT_RGBX_8888 = 5,
++    HISI_FB_PIXEL_FORMAT_RGBA_8888 = 6,
++    HISI_FB_PIXEL_FORMAT_BGRX_8888 = 12,
++    HISI_FB_PIXEL_FORMAT_BGRA_8888 = 13,
++    HISI_FB_PIXEL_FORMAT_YUV_422_I = 14,
++    HISI_FB_PIXEL_FORMAT_YCbCr_422_SP = 15,
++    HISI_FB_PIXEL_FORMAT_YCrCb_422_SP = 16,
++    HISI_FB_PIXEL_FORMAT_YCbCr_420_SP = 17,
++    HISI_FB_PIXEL_FORMAT_YCrCb_420_SP = 18,
++    HISI_FB_PIXEL_FORMAT_YCbCr_422_P = 19,
++    HISI_FB_PIXEL_FORMAT_YCrCb_422_P = 20,
++    HISI_FB_PIXEL_FORMAT_YCbCr_420_P = 21,
++    HISI_FB_PIXEL_FORMAT_YCrCb_420_P = 22,
++};
++
++enum HisiBlendMode {
++    HISI_FB_BLENDING_NONE = 0,
++    HISI_FB_BLENDING_PREMULT = 1,
++    HISI_FB_BLENDING_COVERAGE = 2,
++};
++
++enum HisiTransform {
++    HISI_FB_TRANSFORM_NOP = 0,
++    HISI_FB_TRANSFORM_FLIP_H = 0x01,
++    HISI_FB_TRANSFORM_FLIP_V = 0x02,
++    HISI_FB_TRANSFORM_ROT_90 = 0x04,
++    HISI_FB_TRANSFORM_ROT_180 = 0x03,
++    HISI_FB_TRANSFORM_ROT_270 = 0x07,
++};
++
++enum HisiChannel {
++    DPE0_CHN0 = 0,
++    DPE0_CHN1 = 1,
++    DPE0_CHN2 = 2,
++    DPE0_CHN3 = 3,
++};
++
++enum HisiScene {
++    DSS_SCENE_PDP_ONLINE = 0x1,
++};
++
++enum HisiCapability {
++    CAP_CSC = 1 << 6,
++    CAP_SCL = 1 << 7,
++    CAP_DMA = 1 << 5,
++    CAP_FB_POST = 1 << 1,
++};
++
++struct dss_rect_t {
++    uint32_t x;
++    uint32_t y;
++    uint32_t w;
++    uint32_t h;
++};
++
++struct dss_img_t {
++    uint32_t format;
++    uint32_t width;
++    uint32_t height;
++    uint32_t bpp;
++    uint32_t stride;
++    uint32_t uStride;
++    uint32_t vStride;
++    uint32_t buf_size;
++    uint64_t phy_addr;
++    uint64_t vir_addr;
++    uint64_t uOffset;
++    uint64_t vOffset;
++    uint32_t ptba;
++    uint32_t ptva;
++    uint32_t is_tile;
++    uint32_t mmu_enable;
++    uint32_t csc_mode;
++    uint32_t secure_mode;
++    int32_t shared_fd;
++    uint32_t reserved0;
++};
++
++struct dss_block_info_t {
++    int32_t first_tile;
++    int32_t last_tile;
++    uint32_t acc_hscl;
++    uint32_t h_ratio;
++    uint32_t v_ratio;
++    int32_t h_v_order;
++};
++
++struct dss_layer_t {
++    dss_img_t src;
++    dss_rect_t src_rect;
++    dss_rect_t src_rect_mask;
++    dss_rect_t dst_rect;
++    uint32_t transform;
++    int32_t blending;
++    uint32_t glb_alpha;
++    uint32_t color;
++    int32_t layer_idx;
++    int32_t chn_idx;
++    uint32_t need_cap;
++    uint32_t flags;
++    int32_t acquire_fence;
++    uint32_t reserved0;
++    dss_block_info_t block_info;
++};
++
++struct dss_wb_layer_t {
++    dss_img_t dst;
++    dss_rect_t src_rect;
++    dss_rect_t dst_rect;
++    uint32_t transform;
++    int32_t chn_idx;
++    uint32_t need_cap;
++    uint32_t flags;
++    int32_t acquire_fence;
++    int32_t release_fence;
++};
++
++struct dss_overlay_t {
++    dss_layer_t layer_infos[kHisiMaxLayers];
++    uint32_t layer_nums;
++    int32_t release_fence;
++    uint32_t ovl_flags;
++    uint32_t wb_enable;
++    dss_wb_layer_t wb_layer_info;
++    struct {
++        dss_rect_t dirty_rect;
++    } dirty_region_updt_info;
++    uint32_t hdr_start_addr;
++    uint32_t hdr_stride;
++};
++
++constexpr unsigned long HISIFB_OV_ONLINE_PLAY =
++        _IOW(kHisiFbIoctlMagic, 0x21, dss_overlay_t);
++
++int handleWord(buffer_handle_t handle, size_t byteOffset) {
++    return handle->data[(byteOffset - offsetof(native_handle_t, data)) / sizeof(int)];
++}
++
++bool isHisiHandle(buffer_handle_t handle) {
++    return handle != nullptr && handle->numFds >= 1 && handle->numInts >= 48 &&
++            static_cast<uint32_t>(handleWord(handle, 16)) == kHisiHandleMagic;
++}
++
++bool isYuvFormat(uint32_t format) {
++    return format >= HISI_FB_PIXEL_FORMAT_YUV_422_I &&
++            format <= HISI_FB_PIXEL_FORMAT_YCrCb_420_P;
++}
++
++bool convertHisiFormat(int halFormat, uint32_t* outFormat, uint32_t* outBpp) {
++    switch (halFormat) {
++        case HAL_PIXEL_FORMAT_RGBA_8888:
++            *outFormat = HISI_FB_PIXEL_FORMAT_RGBA_8888;
++            *outBpp = 4;
++            return true;
++        case HAL_PIXEL_FORMAT_RGBX_8888:
++            *outFormat = HISI_FB_PIXEL_FORMAT_RGBX_8888;
++            *outBpp = 4;
++            return true;
++        case HAL_PIXEL_FORMAT_RGB_565:
++            *outFormat = HISI_FB_PIXEL_FORMAT_RGB_565;
++            *outBpp = 2;
++            return true;
++        case HAL_PIXEL_FORMAT_BGRA_8888:
++            *outFormat = HISI_FB_PIXEL_FORMAT_BGRA_8888;
++            *outBpp = 4;
++            return true;
++        case HAL_PIXEL_FORMAT_YCbCr_422_SP:
++            *outFormat = HISI_FB_PIXEL_FORMAT_YCbCr_422_SP;
++            *outBpp = 2;
++            return true;
++        case HAL_PIXEL_FORMAT_YCrCb_420_SP:
++            *outFormat = HISI_FB_PIXEL_FORMAT_YCrCb_420_SP;
++            *outBpp = 1;
++            return true;
++        case 0x100:
++            *outFormat = HISI_FB_PIXEL_FORMAT_YCbCr_420_SP;
++            *outBpp = 1;
++            return true;
++        case 0x101:
++            *outFormat = HISI_FB_PIXEL_FORMAT_YCbCr_420_P;
++            *outBpp = 1;
++            return true;
++        case HAL_PIXEL_FORMAT_YV12:
++            *outFormat = HISI_FB_PIXEL_FORMAT_YCrCb_420_P;
++            *outBpp = 1;
++            return true;
++        default:
++            return false;
++    }
++}
++
++bool getHisiFormat(buffer_handle_t handle, uint32_t* outFormat) {
++    uint32_t bpp = 0;
++    return isHisiHandle(handle) && convertHisiFormat(handleWord(handle, 20), outFormat, &bpp);
++}
++
++uint32_t mapHwcTransform(int32_t transform) {
++    switch (transform) {
++        case HWC_TRANSFORM_FLIP_H:
++            return HISI_FB_TRANSFORM_FLIP_H;
++        case HWC_TRANSFORM_FLIP_V:
++            return HISI_FB_TRANSFORM_FLIP_V;
++        case HWC_TRANSFORM_ROT_90:
++            return HISI_FB_TRANSFORM_ROT_90;
++        case HWC_TRANSFORM_ROT_180:
++            return HISI_FB_TRANSFORM_ROT_180;
++        case HWC_TRANSFORM_ROT_270:
++            return HISI_FB_TRANSFORM_ROT_270;
++        default:
++            return HISI_FB_TRANSFORM_NOP;
++    }
++}
++
++int32_t mapHwcBlendMode(int32_t blendMode) {
++    switch (blendMode) {
++        case HWC2_BLEND_MODE_PREMULTIPLIED:
++            return HISI_FB_BLENDING_PREMULT;
++        case HWC2_BLEND_MODE_COVERAGE:
++            return HISI_FB_BLENDING_COVERAGE;
++        default:
++            return HISI_FB_BLENDING_NONE;
++    }
++}
++
++bool rectIsValid(const hwc_rect_t& rect) {
++    return rect.right > rect.left && rect.bottom > rect.top;
++}
++
++uint32_t rectWidth(const hwc_rect_t& rect) {
++    return static_cast<uint32_t>(rect.right - rect.left);
++}
++
++uint32_t rectHeight(const hwc_rect_t& rect) {
++    return static_cast<uint32_t>(rect.bottom - rect.top);
++}
++
++bool cropIsValid(const hwc_frect_t& crop) {
++    return crop.right > crop.left && crop.bottom > crop.top;
++}
++
++bool frameFitsDisplay(const hwc_rect_t& rect, const HWC2OnFbAdapter::Info& info) {
++    return rect.left >= 0 && rect.top >= 0 &&
++            rect.right <= static_cast<int32_t>(info.width) &&
++            rect.bottom <= static_cast<int32_t>(info.height);
++}
++
++uint64_t frameArea(const hwc_rect_t& rect) {
++    if (!rectIsValid(rect)) {
++        return 0;
++    }
++    return static_cast<uint64_t>(rectWidth(rect)) * rectHeight(rect);
++}
++
++uint32_t roundNonNegative(float value) {
++    return static_cast<uint32_t>(std::max(0.0f, std::round(value)));
++}
++
++bool fillDssLayer(buffer_handle_t handle, const hwc_frect_t& sourceCrop,
++                  const hwc_rect_t& displayFrame, int32_t blendMode, float planeAlpha,
++                  int32_t transform, int32_t layerIndex, int32_t channel, uint32_t needCap,
++                  dss_layer_t* outLayer) {
++    if (!isHisiHandle(handle) || !cropIsValid(sourceCrop) || !rectIsValid(displayFrame)) {
++        return false;
++    }
++
++    const uint32_t width = static_cast<uint32_t>(handleWord(handle, 88));
++    const uint32_t height = static_cast<uint32_t>(handleWord(handle, 92));
++    if (width == 0 || height == 0 || sourceCrop.left < 0.0f || sourceCrop.top < 0.0f ||
++            sourceCrop.right > static_cast<float>(width) ||
++            sourceCrop.bottom > static_cast<float>(height)) {
++        return false;
++    }
++
++    uint32_t hisiFormat = 0;
++    uint32_t bpp = 0;
++    if (!convertHisiFormat(handleWord(handle, 20), &hisiFormat, &bpp)) {
++        return false;
++    }
++
++    memset(outLayer, 0, sizeof(*outLayer));
++    outLayer->src.format = hisiFormat;
++    outLayer->src.width = width;
++    outLayer->src.height = height;
++    outLayer->src.bpp = bpp;
++    outLayer->src.stride = static_cast<uint32_t>(handleWord(handle, 32));
++    outLayer->src.uStride = static_cast<uint32_t>(handleWord(handle, 100));
++    outLayer->src.vStride = static_cast<uint32_t>(handleWord(handle, 104));
++    outLayer->src.buf_size = static_cast<uint32_t>(handleWord(handle, 120));
++    outLayer->src.phy_addr = static_cast<uint32_t>(handleWord(handle, 96));
++    outLayer->src.vir_addr = static_cast<uint32_t>(handleWord(handle, 116));
++    outLayer->src.uOffset = static_cast<uint32_t>(handleWord(handle, 108));
++    outLayer->src.vOffset = static_cast<uint32_t>(handleWord(handle, 112));
++    outLayer->src.ptba = static_cast<uint32_t>(handleWord(handle, 124));
++    outLayer->src.ptva = static_cast<uint32_t>(handleWord(handle, 128));
++    outLayer->src.is_tile = handleWord(handle, 132) == 1 ? 1 : 0;
++    outLayer->src.mmu_enable = outLayer->src.phy_addr == 0 ? 1 : 0;
++    outLayer->src.csc_mode = 0;
++    outLayer->src.secure_mode = 0;
++    outLayer->src.shared_fd = handle->data[0];
++
++    outLayer->src_rect.x = roundNonNegative(sourceCrop.left);
++    outLayer->src_rect.y = roundNonNegative(sourceCrop.top);
++    outLayer->src_rect.w = roundNonNegative(sourceCrop.right - sourceCrop.left);
++    outLayer->src_rect.h = roundNonNegative(sourceCrop.bottom - sourceCrop.top);
++
++    outLayer->dst_rect.x = static_cast<uint32_t>(displayFrame.left);
++    outLayer->dst_rect.y = static_cast<uint32_t>(displayFrame.top);
++    outLayer->dst_rect.w = rectWidth(displayFrame);
++    outLayer->dst_rect.h = rectHeight(displayFrame);
++
++    outLayer->transform = mapHwcTransform(transform);
++    outLayer->blending = mapHwcBlendMode(blendMode);
++    outLayer->glb_alpha = static_cast<uint32_t>(std::max(0.0f, std::min(1.0f, planeAlpha)) * 255.0f);
++    outLayer->layer_idx = layerIndex;
++    outLayer->chn_idx = channel;
++    outLayer->need_cap = needCap;
++    if (isYuvFormat(hisiFormat)) {
++        outLayer->need_cap |= CAP_CSC;
++    }
++    if (outLayer->src_rect.w != outLayer->dst_rect.w ||
++            outLayer->src_rect.h != outLayer->dst_rect.h) {
++        outLayer->need_cap |= CAP_SCL;
++    }
++    outLayer->flags = DSS_SCENE_PDP_ONLINE;
++    outLayer->acquire_fence = -1;
++    return true;
++}
++
+ void dumpHook(hwc2_device_t* device, uint32_t* outSize, char* outBuffer) {
+     auto& adapter = HWC2OnFbAdapter::cast(device);
+     if (outBuffer) {
+@@ -319,11 +660,9 @@ int32_t validateDisplayHook(hwc2_device_t* device, hwc2_display_t display, uint3
+         return HWC2_ERROR_BAD_DISPLAY;
+     }
+ 
+-    const auto& dirtyLayers = adapter.getDirtyLayers();
+-    *outNumTypes = dirtyLayers.size();
+-    *outNumRequests = 0;
++    adapter.validateLayers(outNumTypes, outNumRequests);
+ 
+-    if (*outNumTypes > 0) {
++    if (*outNumTypes > 0 || *outNumRequests > 0) {
+         adapter.setState(HWC2OnFbAdapter::State::VALIDATED_WITH_CHANGES);
+         return HWC2_ERROR_HAS_CHANGES;
+     } else {
+@@ -343,17 +682,17 @@ int32_t getChangedCompositionTypesHook(hwc2_device_t* device, hwc2_display_t dis
+         return HWC2_ERROR_NOT_VALIDATED;
+     }
+ 
+-    // request client composition for all layers
+-    const auto& dirtyLayers = adapter.getDirtyLayers();
++    const auto& changedTypes = adapter.getChangedTypes();
+     if (outLayers && outTypes) {
+-        *outNumElements = std::min(*outNumElements, uint32_t(dirtyLayers.size()));
+-        auto iter = dirtyLayers.cbegin();
++        *outNumElements = std::min(*outNumElements, uint32_t(changedTypes.size()));
++        auto iter = changedTypes.cbegin();
+         for (uint32_t i = 0; i < *outNumElements; i++) {
+-            outLayers[i] = *iter++;
+-            outTypes[i] = HWC2_COMPOSITION_CLIENT;
++            outLayers[i] = iter->first;
++            outTypes[i] = iter->second;
++            ++iter;
+         }
+     } else {
+-        *outNumElements = dirtyLayers.size();
++        *outNumElements = changedTypes.size();
+     }
+ 
+     return HWC2_ERROR_NONE;
+@@ -361,7 +700,7 @@ int32_t getChangedCompositionTypesHook(hwc2_device_t* device, hwc2_display_t dis
+ 
+ int32_t getDisplayRequestsHook(hwc2_device_t* device, hwc2_display_t display,
+                                int32_t* outDisplayRequests, uint32_t* outNumElements,
+-                               hwc2_layer_t* /*outLayers*/, int32_t* /*outLayerRequests*/) {
++                               hwc2_layer_t* outLayers, int32_t* outLayerRequests) {
+     auto& adapter = HWC2OnFbAdapter::cast(device);
+     if (adapter.getDisplayId() != display) {
+         return HWC2_ERROR_BAD_DISPLAY;
+@@ -371,7 +710,17 @@ int32_t getDisplayRequestsHook(hwc2_device_t* device, hwc2_display_t display,
+     }
+ 
+     *outDisplayRequests = 0;
+-    *outNumElements = 0;
++    const auto& clearLayers = adapter.getClearClientTargetLayers();
++    if (outLayers && outLayerRequests) {
++        *outNumElements = std::min(*outNumElements, uint32_t(clearLayers.size()));
++        auto iter = clearLayers.cbegin();
++        for (uint32_t i = 0; i < *outNumElements; i++) {
++            outLayers[i] = *iter++;
++            outLayerRequests[i] = HWC2_LAYER_REQUEST_CLEAR_CLIENT_TARGET;
++        }
++    } else {
++        *outNumElements = clearLayers.size();
++    }
+     return HWC2_ERROR_NONE;
+ }
+ 
+@@ -384,7 +733,7 @@ int32_t acceptDisplayChangesHook(hwc2_device_t* device, hwc2_display_t display)
+         return HWC2_ERROR_NOT_VALIDATED;
+     }
+ 
+-    adapter.clearDirtyLayers();
++    adapter.acceptChanges();
+     adapter.setState(HWC2OnFbAdapter::State::VALIDATED);
+     return HWC2_ERROR_NONE;
+ }
+@@ -454,7 +803,7 @@ int32_t setCursorPositionHook(hwc2_device_t* device, hwc2_display_t display, hwc
+ }
+ 
+ int32_t setLayerBufferHook(hwc2_device_t* device, hwc2_display_t display, hwc2_layer_t layer,
+-                           buffer_handle_t /*buffer*/, int32_t acquireFence) {
++                           buffer_handle_t buffer, int32_t acquireFence) {
+     if (acquireFence >= 0) {
+         sync_wait(acquireFence, -1);
+         close(acquireFence);
+@@ -468,7 +817,7 @@ int32_t setLayerBufferHook(hwc2_device_t* device, hwc2_display_t display, hwc2_l
+         return HWC2_ERROR_BAD_LAYER;
+     }
+ 
+-    // no state change
++    adapter.setLayerBuffer(layer, buffer);
+     return HWC2_ERROR_NONE;
+ }
+ 
+@@ -492,7 +841,91 @@ int32_t setLayerCompositionTypeHook(hwc2_device_t* device, hwc2_display_t displa
+     if (adapter.getDisplayId() != display) {
+         return HWC2_ERROR_BAD_DISPLAY;
+     }
+-    if (!adapter.markLayerDirty(layer, type != HWC2_COMPOSITION_CLIENT)) {
++    if (!adapter.setLayerCompositionType(layer, type)) {
++        return HWC2_ERROR_BAD_LAYER;
++    }
++
++    adapter.setState(HWC2OnFbAdapter::State::MODIFIED);
++    return HWC2_ERROR_NONE;
++}
++
++int32_t setLayerBlendModeHook(hwc2_device_t* device, hwc2_display_t display, hwc2_layer_t layer,
++                              int32_t mode) {
++    auto& adapter = HWC2OnFbAdapter::cast(device);
++    if (adapter.getDisplayId() != display) {
++        return HWC2_ERROR_BAD_DISPLAY;
++    }
++    if (!adapter.setLayerBlendMode(layer, mode)) {
++        return HWC2_ERROR_BAD_LAYER;
++    }
++
++    adapter.setState(HWC2OnFbAdapter::State::MODIFIED);
++    return HWC2_ERROR_NONE;
++}
++
++int32_t setLayerDisplayFrameHook(hwc2_device_t* device, hwc2_display_t display, hwc2_layer_t layer,
++                                 hwc_rect_t frame) {
++    auto& adapter = HWC2OnFbAdapter::cast(device);
++    if (adapter.getDisplayId() != display) {
++        return HWC2_ERROR_BAD_DISPLAY;
++    }
++    if (!adapter.setLayerDisplayFrame(layer, frame)) {
++        return HWC2_ERROR_BAD_LAYER;
++    }
++
++    adapter.setState(HWC2OnFbAdapter::State::MODIFIED);
++    return HWC2_ERROR_NONE;
++}
++
++int32_t setLayerPlaneAlphaHook(hwc2_device_t* device, hwc2_display_t display, hwc2_layer_t layer,
++                               float alpha) {
++    auto& adapter = HWC2OnFbAdapter::cast(device);
++    if (adapter.getDisplayId() != display) {
++        return HWC2_ERROR_BAD_DISPLAY;
++    }
++    if (!adapter.setLayerPlaneAlpha(layer, alpha)) {
++        return HWC2_ERROR_BAD_LAYER;
++    }
++
++    adapter.setState(HWC2OnFbAdapter::State::MODIFIED);
++    return HWC2_ERROR_NONE;
++}
++
++int32_t setLayerSourceCropHook(hwc2_device_t* device, hwc2_display_t display, hwc2_layer_t layer,
++                               hwc_frect_t crop) {
++    auto& adapter = HWC2OnFbAdapter::cast(device);
++    if (adapter.getDisplayId() != display) {
++        return HWC2_ERROR_BAD_DISPLAY;
++    }
++    if (!adapter.setLayerSourceCrop(layer, crop)) {
++        return HWC2_ERROR_BAD_LAYER;
++    }
++
++    adapter.setState(HWC2OnFbAdapter::State::MODIFIED);
++    return HWC2_ERROR_NONE;
++}
++
++int32_t setLayerTransformHook(hwc2_device_t* device, hwc2_display_t display, hwc2_layer_t layer,
++                              int32_t transform) {
++    auto& adapter = HWC2OnFbAdapter::cast(device);
++    if (adapter.getDisplayId() != display) {
++        return HWC2_ERROR_BAD_DISPLAY;
++    }
++    if (!adapter.setLayerTransform(layer, transform)) {
++        return HWC2_ERROR_BAD_LAYER;
++    }
++
++    adapter.setState(HWC2OnFbAdapter::State::MODIFIED);
++    return HWC2_ERROR_NONE;
++}
++
++int32_t setLayerZOrderHook(hwc2_device_t* device, hwc2_display_t display, hwc2_layer_t layer,
++                           uint32_t z) {
++    auto& adapter = HWC2OnFbAdapter::cast(device);
++    if (adapter.getDisplayId() != display) {
++        return HWC2_ERROR_BAD_DISPLAY;
++    }
++    if (!adapter.setLayerZOrder(layer, z)) {
+         return HWC2_ERROR_BAD_LAYER;
+     }
+ 
+@@ -605,25 +1038,25 @@ hwc2_function_pointer_t getFunctionHook(hwc2_device_t* /*device*/, int32_t descr
+         case HWC2_FUNCTION_SET_LAYER_COMPOSITION_TYPE:
+             return asFP<HWC2_PFN_SET_LAYER_COMPOSITION_TYPE>(setLayerCompositionTypeHook);
+         case HWC2_FUNCTION_SET_LAYER_BLEND_MODE:
+-            return asFP<HWC2_PFN_SET_LAYER_BLEND_MODE>(setLayerStateHook<int32_t>);
++            return asFP<HWC2_PFN_SET_LAYER_BLEND_MODE>(setLayerBlendModeHook);
+         case HWC2_FUNCTION_SET_LAYER_COLOR:
+             return asFP<HWC2_PFN_SET_LAYER_COLOR>(setLayerStateHook<hwc_color_t>);
+         case HWC2_FUNCTION_SET_LAYER_DATASPACE:
+             return asFP<HWC2_PFN_SET_LAYER_DATASPACE>(setLayerStateHook<int32_t>);
+         case HWC2_FUNCTION_SET_LAYER_DISPLAY_FRAME:
+-            return asFP<HWC2_PFN_SET_LAYER_DISPLAY_FRAME>(setLayerStateHook<hwc_rect_t>);
++            return asFP<HWC2_PFN_SET_LAYER_DISPLAY_FRAME>(setLayerDisplayFrameHook);
+         case HWC2_FUNCTION_SET_LAYER_PLANE_ALPHA:
+-            return asFP<HWC2_PFN_SET_LAYER_PLANE_ALPHA>(setLayerStateHook<float>);
++            return asFP<HWC2_PFN_SET_LAYER_PLANE_ALPHA>(setLayerPlaneAlphaHook);
+         case HWC2_FUNCTION_SET_LAYER_SIDEBAND_STREAM:
+             return asFP<HWC2_PFN_SET_LAYER_SIDEBAND_STREAM>(setLayerStateHook<buffer_handle_t>);
+         case HWC2_FUNCTION_SET_LAYER_SOURCE_CROP:
+-            return asFP<HWC2_PFN_SET_LAYER_SOURCE_CROP>(setLayerStateHook<hwc_frect_t>);
++            return asFP<HWC2_PFN_SET_LAYER_SOURCE_CROP>(setLayerSourceCropHook);
+         case HWC2_FUNCTION_SET_LAYER_TRANSFORM:
+-            return asFP<HWC2_PFN_SET_LAYER_TRANSFORM>(setLayerStateHook<int32_t>);
++            return asFP<HWC2_PFN_SET_LAYER_TRANSFORM>(setLayerTransformHook);
+         case HWC2_FUNCTION_SET_LAYER_VISIBLE_REGION:
+             return asFP<HWC2_PFN_SET_LAYER_VISIBLE_REGION>(setLayerStateHook<hwc_region_t>);
+         case HWC2_FUNCTION_SET_LAYER_Z_ORDER:
+-            return asFP<HWC2_PFN_SET_LAYER_Z_ORDER>(setLayerStateHook<uint32_t>);
++            return asFP<HWC2_PFN_SET_LAYER_Z_ORDER>(setLayerZOrderHook);
+ 
+         default:
+             ALOGE("unknown function descriptor %d", descriptor);
+@@ -692,6 +1125,7 @@ const HWC2OnFbAdapter::Info& HWC2OnFbAdapter::getInfo() const {
+ }
+ 
+ void HWC2OnFbAdapter::updateDebugString() {
++    mDebugString.clear();
+     if (mFbDevice->common.version >= 1 && mFbDevice->dump) {
+         char buffer[4096];
+         mFbDevice->dump(mFbDevice, buffer, sizeof(buffer));
+@@ -699,6 +1133,18 @@ void HWC2OnFbAdapter::updateDebugString() {
+ 
+         mDebugString = buffer;
+     }
++    mDebugString += "\nmozart_dss_overlay=";
++    mDebugString += mOverlayEnabled ? "enabled" : "disabled";
++    if (mOverlayDisabledByError) {
++        mDebugString += ", disabled_by_error";
++    }
++    if (mHasOverlayLayer) {
++        mDebugString += ", active_layer=" + std::to_string(mOverlayLayer);
++        if (mOverlayUsesClientTarget) {
++            mDebugString += ", client_target";
++        }
++    }
++    mDebugString += "\n";
+ }
+ 
+ const std::string& HWC2OnFbAdapter::getDebugString() const {
+@@ -717,40 +1163,196 @@ hwc2_layer_t HWC2OnFbAdapter::addLayer() {
+     hwc2_layer_t id = ++mNextLayerId;
+ 
+     mLayers.insert(id);
+-    mDirtyLayers.insert(id);
++    mLayerStates.emplace(id, LayerState{});
+ 
+     return id;
+ }
+ 
+ bool HWC2OnFbAdapter::removeLayer(hwc2_layer_t layer) {
+-    mDirtyLayers.erase(layer);
+-    return mLayers.erase(layer);
++    if (mLayers.erase(layer) == 0) {
++        return false;
++    }
++
++    mLayerStates.erase(layer);
++    mChangedTypes.erase(layer);
++    mClearClientTargetLayers.erase(layer);
++    if (mHasOverlayLayer && mOverlayLayer == layer) {
++        mHasOverlayLayer = false;
++        mOverlayUsesClientTarget = false;
++    }
++    return true;
+ }
+ 
+ bool HWC2OnFbAdapter::hasLayer(hwc2_layer_t layer) const {
+     return mLayers.count(layer) > 0;
+ }
+ 
+-bool HWC2OnFbAdapter::markLayerDirty(hwc2_layer_t layer, bool dirty) {
+-    if (mLayers.count(layer) == 0) {
++bool HWC2OnFbAdapter::setLayerBuffer(hwc2_layer_t layer, buffer_handle_t buffer) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
+         return false;
+     }
+ 
+-    if (dirty) {
+-        mDirtyLayers.insert(layer);
+-    } else {
+-        mDirtyLayers.erase(layer);
++    it->second.buffer = buffer;
++    return true;
++}
++
++bool HWC2OnFbAdapter::setLayerCompositionType(hwc2_layer_t layer, int32_t type) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
++        return false;
++    }
++
++    it->second.requestedType = type;
++    return true;
++}
++
++bool HWC2OnFbAdapter::setLayerBlendMode(hwc2_layer_t layer, int32_t mode) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
++        return false;
++    }
++
++    it->second.blendMode = mode;
++    return true;
++}
++
++bool HWC2OnFbAdapter::setLayerDisplayFrame(hwc2_layer_t layer, hwc_rect_t frame) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
++        return false;
++    }
++
++    it->second.displayFrame = frame;
++    return true;
++}
++
++bool HWC2OnFbAdapter::setLayerPlaneAlpha(hwc2_layer_t layer, float alpha) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
++        return false;
+     }
+ 
++    it->second.planeAlpha = alpha;
+     return true;
+ }
+ 
+-const std::unordered_set<hwc2_layer_t>& HWC2OnFbAdapter::getDirtyLayers() const {
+-    return mDirtyLayers;
++bool HWC2OnFbAdapter::setLayerSourceCrop(hwc2_layer_t layer, hwc_frect_t crop) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
++        return false;
++    }
++
++    it->second.sourceCrop = crop;
++    return true;
+ }
+ 
+-void HWC2OnFbAdapter::clearDirtyLayers() {
+-    mDirtyLayers.clear();
++bool HWC2OnFbAdapter::setLayerTransform(hwc2_layer_t layer, int32_t transform) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
++        return false;
++    }
++
++    it->second.transform = transform;
++    return true;
++}
++
++bool HWC2OnFbAdapter::setLayerZOrder(hwc2_layer_t layer, uint32_t z) {
++    auto it = mLayerStates.find(layer);
++    if (it == mLayerStates.end()) {
++        return false;
++    }
++
++    it->second.z = z;
++    return true;
++}
++
++void HWC2OnFbAdapter::validateLayers(uint32_t* outNumTypes, uint32_t* outNumRequests) {
++    mChangedTypes.clear();
++    mClearClientTargetLayers.clear();
++    mHasOverlayLayer = false;
++    mOverlayUsesClientTarget = false;
++
++    const bool wasEnabled = mOverlayEnabled;
++    mOverlayEnabled = property_get_bool("persist.debug.mozart.hwc_overlay", false);
++    if (!mOverlayEnabled) {
++        mOverlayDisabledByError = false;
++    } else if (!wasEnabled) {
++        ALOGI("mozart DSS overlay fallback enabled");
++    }
++
++    hwc2_layer_t overlayLayer = 0;
++    uint64_t overlayArea = 0;
++    if (mOverlayEnabled && !mOverlayDisabledByError) {
++        for (const auto& entry : mLayerStates) {
++            const auto& state = entry.second;
++            uint32_t hisiFormat = 0;
++            dss_layer_t testLayer;
++            if (state.requestedType != HWC2_COMPOSITION_DEVICE ||
++                    state.transform != 0 ||
++                    state.planeAlpha < 0.999f ||
++                    !rectIsValid(state.displayFrame) ||
++                    !frameFitsDisplay(state.displayFrame, mFbInfo) ||
++                    !cropIsValid(state.sourceCrop) ||
++                    !getHisiFormat(state.buffer, &hisiFormat) ||
++                    !isYuvFormat(hisiFormat) ||
++                    !fillDssLayer(state.buffer, state.sourceCrop, state.displayFrame,
++                                  HWC2_BLEND_MODE_NONE, 1.0f, state.transform, 0,
++                                  DPE0_CHN0, CAP_DMA, &testLayer)) {
++                continue;
++            }
++
++            uint64_t area = frameArea(state.displayFrame);
++            if (area > overlayArea) {
++                overlayArea = area;
++                overlayLayer = entry.first;
++            }
++        }
++    }
++
++    bool hasClientComposition = false;
++    for (auto& entry : mLayerStates) {
++        auto& state = entry.second;
++        const int32_t validatedType =
++                overlayLayer != 0 && entry.first == overlayLayer
++                        ? HWC2_COMPOSITION_DEVICE
++                        : HWC2_COMPOSITION_CLIENT;
++
++        state.validatedType = validatedType;
++        if (state.requestedType != validatedType) {
++            mChangedTypes.emplace(entry.first, validatedType);
++        }
++        if (validatedType == HWC2_COMPOSITION_CLIENT) {
++            hasClientComposition = true;
++        }
++    }
++
++    if (overlayLayer != 0) {
++        mHasOverlayLayer = true;
++        mOverlayLayer = overlayLayer;
++        if (hasClientComposition) {
++            mOverlayUsesClientTarget = true;
++            mClearClientTargetLayers.insert(overlayLayer);
++        }
++    }
++
++    *outNumTypes = mChangedTypes.size();
++    *outNumRequests = mClearClientTargetLayers.size();
++}
++
++const std::unordered_map<hwc2_layer_t, int32_t>& HWC2OnFbAdapter::getChangedTypes() const {
++    return mChangedTypes;
++}
++
++const std::unordered_set<hwc2_layer_t>& HWC2OnFbAdapter::getClearClientTargetLayers() const {
++    return mClearClientTargetLayers;
++}
++
++void HWC2OnFbAdapter::acceptChanges() {
++    for (auto& entry : mLayerStates) {
++        entry.second.requestedType = entry.second.validatedType;
++    }
++    mChangedTypes.clear();
+ }
+ 
+ /*
+@@ -781,8 +1383,107 @@ void HWC2OnFbAdapter::setBuffer(buffer_handle_t buffer) {
+     mBuffer = buffer;
+ }
+ 
++bool HWC2OnFbAdapter::postOverlay() {
++    if (!mHasOverlayLayer || mOverlayDisabledByError) {
++        return false;
++    }
++
++    auto it = mLayerStates.find(mOverlayLayer);
++    if (it == mLayerStates.end()) {
++        return false;
++    }
++
++    if (mOverlayUsesClientTarget && !mBuffer) {
++        ALOGE("mozart DSS overlay needs client target, but none was provided");
++        mOverlayDisabledByError = true;
++        mHasOverlayLayer = false;
++        mOverlayUsesClientTarget = false;
++        setState(State::MODIFIED);
++        return false;
++    }
++
++    dss_overlay_t overlay;
++    memset(&overlay, 0, sizeof(overlay));
++    overlay.release_fence = -1;
++    overlay.wb_layer_info.acquire_fence = -1;
++    overlay.wb_layer_info.release_fence = -1;
++    overlay.ovl_flags = DSS_SCENE_PDP_ONLINE;
++    overlay.dirty_region_updt_info.dirty_rect.x = 0;
++    overlay.dirty_region_updt_info.dirty_rect.y = 0;
++    overlay.dirty_region_updt_info.dirty_rect.w = mFbInfo.width;
++    overlay.dirty_region_updt_info.dirty_rect.h = mFbInfo.height;
++
++    uint32_t layerCount = 0;
++    const auto& video = it->second;
++    if (!fillDssLayer(video.buffer, video.sourceCrop, video.displayFrame,
++                      HWC2_BLEND_MODE_NONE, 1.0f, video.transform, layerCount,
++                      DPE0_CHN0, CAP_DMA, &overlay.layer_infos[layerCount])) {
++        ALOGE("mozart DSS overlay video layer became invalid");
++        mOverlayDisabledByError = true;
++        mHasOverlayLayer = false;
++        mOverlayUsesClientTarget = false;
++        setState(State::MODIFIED);
++        return false;
++    }
++    layerCount++;
++
++    if (mOverlayUsesClientTarget) {
++        const hwc_frect_t clientCrop{0.0f, 0.0f, static_cast<float>(mFbInfo.width),
++                                     static_cast<float>(mFbInfo.height)};
++        const hwc_rect_t clientFrame{0, 0, static_cast<int32_t>(mFbInfo.width),
++                                     static_cast<int32_t>(mFbInfo.height)};
++        if (!fillDssLayer(mBuffer, clientCrop, clientFrame, HWC2_BLEND_MODE_PREMULTIPLIED,
++                          1.0f, 0, layerCount, DPE0_CHN3, CAP_FB_POST,
++                          &overlay.layer_infos[layerCount])) {
++            ALOGE("mozart DSS overlay client target became invalid");
++            mOverlayDisabledByError = true;
++            mHasOverlayLayer = false;
++            mOverlayUsesClientTarget = false;
++            setState(State::MODIFIED);
++            return false;
++        }
++        layerCount++;
++    }
++
++    overlay.layer_nums = layerCount;
++
++    int fbFd = open("/dev/graphics/fb0", O_RDWR | O_CLOEXEC);
++    if (fbFd < 0) {
++        ALOGE("mozart DSS overlay open fb0 failed: %s", strerror(errno));
++        mOverlayDisabledByError = true;
++        mHasOverlayLayer = false;
++        mOverlayUsesClientTarget = false;
++        setState(State::MODIFIED);
++        return false;
++    }
++
++    if (ioctl(fbFd, HISIFB_OV_ONLINE_PLAY, &overlay) != 0) {
++        const int savedErrno = errno;
++        ALOGE("mozart DSS overlay ioctl failed: %s", strerror(savedErrno));
++        ::close(fbFd);
++        if (overlay.release_fence >= 0) {
++            ::close(overlay.release_fence);
++        }
++        mOverlayDisabledByError = true;
++        mHasOverlayLayer = false;
++        mOverlayUsesClientTarget = false;
++        setState(State::MODIFIED);
++        return false;
++    }
++
++    ::close(fbFd);
++    if (overlay.release_fence >= 0) {
++        ::close(overlay.release_fence);
++    }
++    return true;
++}
++
+ bool HWC2OnFbAdapter::postBuffer() {
+     int error = 0;
++    if (mHasOverlayLayer && postOverlay()) {
++        return true;
++    }
++
+     if (mBuffer) {
+         error = mFbDevice->post(mFbDevice, mBuffer);
+     }
+diff --git a/graphics/composer/2.1/utils/hwc2onfbadapter/include/hwc2onfbadapter/HWC2OnFbAdapter.h b/graphics/composer/2.1/utils/hwc2onfbadapter/include/hwc2onfbadapter/HWC2OnFbAdapter.h
+index f1f11ef..8ac067f 100644
+--- a/graphics/composer/2.1/utils/hwc2onfbadapter/include/hwc2onfbadapter/HWC2OnFbAdapter.h
++++ b/graphics/composer/2.1/utils/hwc2onfbadapter/include/hwc2onfbadapter/HWC2OnFbAdapter.h
+@@ -21,6 +21,7 @@
+ #include <mutex>
+ #include <string>
+ #include <thread>
++#include <unordered_map>
+ #include <unordered_set>
+ 
+ #define HWC2_INCLUDE_STRINGIFICATION
+@@ -70,9 +71,18 @@ public:
+     hwc2_layer_t addLayer();
+     bool removeLayer(hwc2_layer_t layer);
+     bool hasLayer(hwc2_layer_t layer) const;
+-    bool markLayerDirty(hwc2_layer_t layer, bool dirty);
+-    const std::unordered_set<hwc2_layer_t>& getDirtyLayers() const;
+-    void clearDirtyLayers();
++    bool setLayerBuffer(hwc2_layer_t layer, buffer_handle_t buffer);
++    bool setLayerCompositionType(hwc2_layer_t layer, int32_t type);
++    bool setLayerBlendMode(hwc2_layer_t layer, int32_t mode);
++    bool setLayerDisplayFrame(hwc2_layer_t layer, hwc_rect_t frame);
++    bool setLayerPlaneAlpha(hwc2_layer_t layer, float alpha);
++    bool setLayerSourceCrop(hwc2_layer_t layer, hwc_frect_t crop);
++    bool setLayerTransform(hwc2_layer_t layer, int32_t transform);
++    bool setLayerZOrder(hwc2_layer_t layer, uint32_t z);
++    void validateLayers(uint32_t* outNumTypes, uint32_t* outNumRequests);
++    const std::unordered_map<hwc2_layer_t, int32_t>& getChangedTypes() const;
++    const std::unordered_set<hwc2_layer_t>& getClearClientTargetLayers() const;
++    void acceptChanges();
+ 
+     void setBuffer(buffer_handle_t buffer);
+     bool postBuffer();
+@@ -91,12 +101,33 @@ private:
+ 
+     uint64_t mNextLayerId{0};
+     std::unordered_set<hwc2_layer_t> mLayers;
+-    std::unordered_set<hwc2_layer_t> mDirtyLayers;
++
++    struct LayerState {
++        buffer_handle_t buffer{nullptr};
++        int32_t requestedType{HWC2_COMPOSITION_CLIENT};
++        int32_t validatedType{HWC2_COMPOSITION_CLIENT};
++        int32_t blendMode{HWC2_BLEND_MODE_NONE};
++        hwc_rect_t displayFrame{0, 0, 0, 0};
++        hwc_frect_t sourceCrop{0, 0, 0, 0};
++        float planeAlpha{1.0f};
++        int32_t transform{0};
++        uint32_t z{0};
++    };
++    std::unordered_map<hwc2_layer_t, LayerState> mLayerStates;
++    std::unordered_map<hwc2_layer_t, int32_t> mChangedTypes;
++    std::unordered_set<hwc2_layer_t> mClearClientTargetLayers;
+ 
+     buffer_handle_t mBuffer{nullptr};
++    bool mOverlayEnabled{false};
++    bool mOverlayDisabledByError{false};
++    bool mHasOverlayLayer{false};
++    bool mOverlayUsesClientTarget{false};
++    hwc2_layer_t mOverlayLayer{0};
+ 
+     std::unordered_set<HWC2::Capability> mCapabilities;
+ 
++    bool postOverlay();
++
+     class VsyncThread {
+     public:
+         static int64_t now();

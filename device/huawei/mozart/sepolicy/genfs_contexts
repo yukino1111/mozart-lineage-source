@@ -1,0 +1,46 @@
+# HiSilicon GPU memory accounting
+genfscon proc /gpu_memory u:object_r:mozart_proc_gpu_memory:s0
+genfscon debugfs /ion u:object_r:mozart_debugfs_ion:s0
+
+# Battery, lights, storage and performance sysfs nodes
+genfscon sysfs /devices/fff34000.pmic/battery.87/power_supply/Battery u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.pmic/battery.87/power_supply/Mains u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.pmic/battery.87/power_supply/USB u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.pmic/battery.87/power_supply/bq_bk_battery u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.pmic/battery.88/power_supply/Battery u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.pmic/battery.88/power_supply/Mains u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.pmic/battery.88/power_supply/USB u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.pmic/battery.88/power_supply/bq_bk_battery u:object_r:sysfs_batteryinfo:s0
+genfscon sysfs /devices/fff34000.hisi_led/leds u:object_r:sysfs_leds:s0
+genfscon sysfs /devices/platform/hisi_fb.524289/leds u:object_r:sysfs_leds:s0
+genfscon sysfs /devices/fdf0a000.i2c/i2c-1/1-0063/leds u:object_r:sysfs_leds:s0
+genfscon sysfs /devices/fdf0a000.i2c/i2c-1/1-0067/leds u:object_r:sysfs_leds:s0
+genfscon sysfs /devices/fdf0a000.i2c/i2c-1/1-0068/leds u:object_r:sysfs_leds:s0
+genfscon sysfs /devices/hi_mci.0/mmc_host/mmc0/mmc0:0001/block/mmcblk0/stat u:object_r:sysfs_disk_stat:s0
+genfscon sysfs /devices/hi_mci.0/mmc_host/mmc0/mmc0:0001/block/mmcblk0/queue u:object_r:mozart_sysfs_mmc_queue:s0
+genfscon sysfs /devices/virtual/bdi/179:0 u:object_r:mozart_sysfs_mmc_queue:s0
+genfscon sysfs /module/block2mtd/parameters/block2mtd u:object_r:mozart_sysfs_block2mtd:s0
+genfscon sysfs /devices/ddrfreq/devfreq/ddrfreq u:object_r:mozart_sysfs_devfreq:s0
+genfscon sysfs /class/devfreq/gpufreq u:object_r:mozart_sysfs_devfreq:s0
+genfscon sysfs /devices/e8600000.mali/devfreq/gpufreq u:object_r:mozart_sysfs_devfreq:s0
+genfscon sysfs /class/graphics/fb0/lcd_cabc_mode u:object_r:mozart_sysfs_fb:s0
+genfscon sysfs /class/graphics/fb0/lcd_starlight_mode u:object_r:mozart_sysfs_fb:s0
+genfscon sysfs /devices/platform/hisi_fb.524289/graphics/fb0/lcd_cabc_mode u:object_r:mozart_sysfs_fb:s0
+genfscon sysfs /devices/platform/hisi_fb.524289/graphics/fb0/lcd_starlight_mode u:object_r:mozart_sysfs_fb:s0
+genfscon sysfs /devices/virtual/graphics/fb0 u:object_r:mozart_sysfs_fb:s0
+genfscon sysfs /kernel/hmp u:object_r:mozart_sysfs_hmp:s0
+genfscon sysfs /kernel/set_hmp_thresholds u:object_r:mozart_sysfs_hmp:s0
+genfscon sysfs /kernel/mm/ksm u:object_r:mozart_sysfs_ksm:s0
+genfscon sysfs /kernel/perfhub u:object_r:mozart_sysfs_perfhub:s0
+
+# Connectivity and sensors
+genfscon proc /bluetooth/sleep u:object_r:proc_bluetooth_writable:s0
+genfscon sysfs /class/rfkill/rfkill0 u:object_r:sysfs_bluetooth_writable:s0
+genfscon sysfs /devices/bluetooth_power.35/rfkill/rfkill0 u:object_r:sysfs_bluetooth_writable:s0
+genfscon sysfs /module/bcmdhd/parameters/firmware_path u:object_r:sysfs_wlan_fwpath:s0
+genfscon sysfs /devices/platform/huawei_sensor u:object_r:mozart_sysfs_sensors:s0
+genfscon sysfs /class/sensors u:object_r:mozart_sysfs_sensors:s0
+
+# Audio board information
+genfscon sysfs /firmware/devicetree/base/hisi,boardname u:object_r:mozart_sysfs_boardinfo:s0
+genfscon sysfs /firmware/devicetree/base/audio_hw_config u:object_r:mozart_sysfs_audio_info:s0

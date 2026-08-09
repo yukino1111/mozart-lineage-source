@@ -1,0 +1,129 @@
+diff --git a/core/Makefile b/core/Makefile
+index 404bb54..f8a32de 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -3031,6 +3031,9 @@ ifdef BOARD_AVB_RECOVERY_KEY_PATH
+ 	$(hide) echo "avb_recovery_rollback_index_location=$(BOARD_AVB_RECOVERY_ROLLBACK_INDEX_LOCATION)" >> $(zip_root)/META/misc_info.txt
+ endif # BOARD_AVB_RECOVERY_KEY_PATH
+ endif # BOARD_AVB_ENABLE
++ifeq ($(BOARD_SKIP_INSTALL_RECOVERY),true)
++	$(hide) echo "skip_install_recovery=true" >> $(zip_root)/META/misc_info.txt
++endif
+ ifdef BOARD_BPT_INPUT_FILES
+ 	$(hide) echo "board_bpt_enable=true" >> $(zip_root)/META/misc_info.txt
+ 	$(hide) echo "board_bpt_make_table_args=$(BOARD_BPT_MAKE_TABLE_ARGS)" >> $(zip_root)/META/misc_info.txt
+@@ -3198,12 +3201,16 @@ endif
+ ifeq ($(WITH_GMS),true)
+     $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := false
+ else
++ifneq ($(filter true,$(TARGET_DISABLE_LINEAGE_BACKUPTOOL) $(PRODUCT_DISABLE_LINEAGE_BACKUPTOOL)),)
++    $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := false
++else
+ ifneq ($(LINEAGE_BUILD),)
+     $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := true
+ else
+     $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := false
+ endif
+ endif
++endif
+ 
+ $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
+ 		build/make/tools/releasetools/ota_from_target_files
+diff --git a/tools/buildinfo.sh b/tools/buildinfo.sh
+index 9a03fad..71d3dac 100755
+--- a/tools/buildinfo.sh
++++ b/tools/buildinfo.sh
+@@ -17,8 +17,8 @@ echo "ro.build.version.min_supported_target_sdk=$PLATFORM_MIN_SUPPORTED_TARGET_S
+ echo "ro.build.date=`$DATE`"
+ echo "ro.build.date.utc=`$DATE +%s`"
+ echo "ro.build.type=$TARGET_BUILD_TYPE"
+-echo "ro.build.user=$USER"
+-echo "ro.build.host=`hostname`"
++echo "ro.build.user=${BUILD_USERNAME:-$USER}"
++echo "ro.build.host=${BUILD_HOSTNAME:-`hostname`}"
+ echo "ro.build.tags=$BUILD_VERSION_TAGS"
+ echo "ro.build.flavor=$TARGET_BUILD_FLAVOR"
+ if [ -n "$BOARD_BUILD_SYSTEM_ROOT_IMAGE" ] ; then
+diff --git a/tools/releasetools/common.py b/tools/releasetools/common.py
+index f7ab11c..3f9a4c2 100644
+--- a/tools/releasetools/common.py
++++ b/tools/releasetools/common.py
+@@ -1893,6 +1893,9 @@ def MakeRecoveryPatch(input_dir, output_sink, recovery_img, boot_img,
+   if info_dict is None:
+     info_dict = OPTIONS.info_dict
+ 
++  if info_dict.get("skip_install_recovery") == "true":
++    return
++
+   full_recovery_image = info_dict.get("full_recovery_image") == "true"
+   use_bsdiff = info_dict.get("no_gzip_recovery_ramdisk") == "true"
+ 
+diff --git a/tools/releasetools/ota_from_target_files.py b/tools/releasetools/ota_from_target_files.py
+index 5abbd64..cd6afaa 100755
+--- a/tools/releasetools/ota_from_target_files.py
++++ b/tools/releasetools/ota_from_target_files.py
+@@ -708,6 +708,13 @@ def CopyInstallTools(output_zip):
+       output_zip.write(install_source, install_target)
+ 
+ 
++def HasInstallTools():
++  install_path = os.path.join(OPTIONS.input_tmp, "INSTALL")
++  if not os.path.isdir(install_path):
++    return False
++  return any(files for _, _, files in os.walk(install_path))
++
++
+ def WriteFullOTAPackage(input_zip, output_file):
+   target_info = BuildInfo(OPTIONS.info_dict, OPTIONS.oem_dicts)
+ 
+@@ -739,7 +746,8 @@ def WriteFullOTAPackage(input_zip, output_file):
+       metadata=metadata,
+       info_dict=OPTIONS.info_dict)
+ 
+-  assert HasRecoveryPatch(input_zip)
++  if OPTIONS.info_dict.get("skip_install_recovery") != "true":
++    assert HasRecoveryPatch(input_zip)
+ 
+   # Assertions (e.g. downgrade check, device properties check).
+   #ts = target_info.GetBuildProp("ro.build.date.utc")
+@@ -799,10 +807,14 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
+ 
+   device_specific.FullOTA_InstallBegin()
+ 
+-  CopyInstallTools(output_zip)
+-  script.UnpackPackageDir("install", "/tmp/install")
+-  script.SetPermissionsRecursive("/tmp/install", 0, 0, 0755, 0644, None, None)
+-  script.SetPermissionsRecursive("/tmp/install/bin", 0, 0, 0755, 0755, None, None)
++  has_install_tools = HasInstallTools()
++  if OPTIONS.backuptool and not has_install_tools:
++    raise common.ExternalError("backuptool requested but install tools are missing")
++  if has_install_tools:
++    CopyInstallTools(output_zip)
++    script.UnpackPackageDir("install", "/tmp/install")
++    script.SetPermissionsRecursive("/tmp/install", 0, 0, 0755, 0644, None, None)
++    script.SetPermissionsRecursive("/tmp/install/bin", 0, 0, 0755, 0755, None, None)
+ 
+   if target_info.get("system_root_image") == "true":
+     sysmount = "/"
+diff --git a/tools/releasetools/sign_target_files_apks.py b/tools/releasetools/sign_target_files_apks.py
+index fa62c8f..d1e565b 100755
+--- a/tools/releasetools/sign_target_files_apks.py
++++ b/tools/releasetools/sign_target_files_apks.py
+@@ -470,11 +470,12 @@ def RewriteProps(data):
+       elif key == "ro.build.tags":
+         value = EditTags(value)
+       elif key == "ro.build.display.id":
+-        # change, eg, "JWR66N dev-keys" to "JWR66N"
+-        value = value.split()
+-        if len(value) > 1 and value[-1].endswith("-keys"):
+-          value.pop()
+-        value = " ".join(value)
++        if os.environ.get("KEEP_DISPLAY_KEYS") != "1":
++          # change, eg, "JWR66N dev-keys" to "JWR66N"
++          value = value.split()
++          if len(value) > 1 and value[-1].endswith("-keys"):
++            value.pop()
++          value = " ".join(value)
+       line = key + "=" + value
+     if line != original_line:
+       print("  replace: ", original_line)
