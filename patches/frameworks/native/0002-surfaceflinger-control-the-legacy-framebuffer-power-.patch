@@ -1,44 +1,71 @@
-From 9174fb1c40dd2c474f1d0292e5a8bac7e360693f Mon Sep 17 00:00:00 2001
+From 35c3032ea56ef6b463f7badaafddfede316a7d2b Mon Sep 17 00:00:00 2001
 From: Eduardo Alonso <edu@error404software.com>
 Date: Fri, 23 Nov 2018 16:34:36 +0200
-Subject: [PATCH] surfaceflinger: Fix deep sleep issue
+Subject: [PATCH 2/2] surfaceflinger: control the legacy framebuffer power
+ state
 
-* The problem is that after unplugging the phone from the USB port, the screen no longer turns on. This is caused because the FB is set to sleep, and no one wakes it up whenever the power button is pressed, thats why we are going to do so manually.
+Based on Eduardo Alonso\x27s deep-sleep framebuffer wake patch, carried by kirin930-dev. Adapted for LineageOS 18.1 and extended locally for power-down handling.
 
 Signed-off-by: Thespartann <danilastefan69@yahoo.ro>
+
+Adapted-by: yukino1111 <107763725+yukino1111@users.noreply.github.com>
 ---
- services/surfaceflinger/SurfaceFlinger_hwc1.cpp | 12 ++++++++++++
- 1 file changed, 12 insertions(+)
+ services/surfaceflinger/SurfaceFlinger.cpp | 19 +++++++++++++++++++
+ 1 file changed, 19 insertions(+)
 
 diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
-index e0b2d55b8..e9ea8baeb 100644
+index e01c8c9dd5..9fceedec70 100644
 --- a/services/surfaceflinger/SurfaceFlinger.cpp
 +++ b/services/surfaceflinger/SurfaceFlinger.cpp
-@@ -96,6 +96,9 @@
+@@ -48,6 +48,7 @@
+ #include <dlfcn.h>
+ #include <dvr/vr_flinger.h>
+ #include <errno.h>
++#include <fcntl.h>
+ #include <gui/BufferQueue.h>
+ #include <gui/DebugEGLImageTracker.h>
+ #include <gui/GuiConfig.h>
+@@ -59,11 +60,13 @@
+ #include <gui/Surface.h>
+ #include <input/IInputFlinger.h>
+ #include <layerproto/LayerProtoParser.h>
++#include <linux/fb.h>
+ #include <log/log.h>
+ #include <private/android_filesystem_config.h>
+ #include <private/gui/SyncFeatures.h>
+ #include <renderengine/RenderEngine.h>
+ #include <statslog.h>
++#include <sys/ioctl.h>
+ #include <sys/types.h>
+ #include <ui/ColorSpace.h>
+ #include <ui/DebugUtils.h>
+@@ -80,6 +83,7 @@
+ #include <utils/Timers.h>
+ #include <utils/Trace.h>
+ #include <utils/misc.h>
++#include <unistd.h>
  
- #define DISPLAY_COUNT       1
+ #include <algorithm>
+ #include <cinttypes>
+@@ -4261,6 +4265,21 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, hal:
+         return;
+     }
  
-+#define FBIOBLANK               0x4611
-+#define FB_BLANK_UNBLANK        0
++    // The legacy Huawei HWC does not reliably blank the LCD framebuffer on
++    // power-off. Force power-down here, but leave power-on to HWC so the old
++    // front buffer is not exposed before the keyguard frame is ready.
++    if (mode == hal::PowerMode::OFF) {
++        const int fd = open("/dev/graphics/fb0", O_WRONLY);
++        if (fd < 0) {
++            ALOGE("Error opening LCD framebuffer: %s", strerror(errno));
++        } else {
++            if (ioctl(fd, FBIOBLANK, FB_BLANK_POWERDOWN) < 0) {
++                ALOGE("Error powering down LCD framebuffer: %s", strerror(errno));
++            }
++            close(fd);
++        }
++    }
 +
- /*
-  * DEBUG_SCREENSHOTS: set to true to check that screenshots are not all
-  * black pixels.
-@@ -2702,6 +2705,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
-         int mode) {
-     ALOGD("Set power mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
-             this);
-+	if (mode == 2)//Awaking the lcd
-+	{
-+		int fd, ret;
-+		fd = open("/dev/graphics/fb0",O_WRONLY);
-+		ret = ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
-+
-+		if (ret < 0)
-+			ALOGE("Error waking up LCD: %d (%s)\n", ret, strerror(errno));
-+	}
-     int32_t type = hw->getDisplayType();
-     int currentMode = hw->getPowerMode();
+     display->setPowerMode(mode);
  
--- 
-2.20.1
+     if (mInterceptor->isEnabled()) {
