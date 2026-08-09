@@ -8,9 +8,10 @@ author is used only for original integration and device work.
 
 `device/huawei/mozart` is derived from
 [`kirin930-dev/android_device_huawei_mozart`](https://github.com/kirin930-dev/android_device_huawei_mozart)
-at commit `4a057c26bbc1b85782d10fb99907ec14974433a1`. The branch history directly
-contains that upstream repository's history, including its original authors,
-before the maintained LineageOS 18.1 changes.
+through commit `4a057c26bbc1b85782d10fb99907ec14974433a1`. Its history was replayed
+without the proprietary `hw_healthd`, `oeminfo_nvm_server`, and `teecd`
+executables; the original author names and commit messages were retained before
+the maintained LineageOS 18.1 changes.
 
 The vendor and kernel baselines are pinned in `local_manifests/mozart.xml` and
 remain separate upstream repositories. Only their required differences are
