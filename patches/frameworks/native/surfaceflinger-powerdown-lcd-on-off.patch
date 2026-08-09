@@ -1,44 +1,69 @@
 From 9174fb1c40dd2c474f1d0292e5a8bac7e360693f Mon Sep 17 00:00:00 2001
 From: Eduardo Alonso <edu@error404software.com>
 Date: Fri, 23 Nov 2018 16:34:36 +0200
-Subject: [PATCH] surfaceflinger: Fix deep sleep issue
+Subject: [PATCH] surfaceflinger: control the legacy framebuffer power state
 
-* The problem is that after unplugging the phone from the USB port, the screen no longer turns on. This is caused because the FB is set to sleep, and no one wakes it up whenever the power button is pressed, thats why we are going to do so manually.
+Based on Eduardo Alonso's deep-sleep framebuffer wake patch, carried by
+kirin930-dev. Adapted for the LineageOS 16.0 SurfaceFlinger power API and
+extended to power the framebuffer down on screen-off.
 
 Signed-off-by: Thespartann <danilastefan69@yahoo.ro>
+Adapted-by: yukino1111 <107763725+yukino1111@users.noreply.github.com>
 ---
- services/surfaceflinger/SurfaceFlinger_hwc1.cpp | 12 ++++++++++++
- 1 file changed, 12 insertions(+)
-
 diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
-index e0b2d55b8..e9ea8baeb 100644
+index f513b9f..c98b5cb 100644
 --- a/services/surfaceflinger/SurfaceFlinger.cpp
 +++ b/services/surfaceflinger/SurfaceFlinger.cpp
-@@ -96,6 +96,9 @@
+@@ -18,15 +18,18 @@
+ #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+ 
+ #include <stdint.h>
++#include <sys/ioctl.h>
+ #include <sys/types.h>
+ #include <algorithm>
+ #include <errno.h>
++#include <fcntl.h>
+ #include <math.h>
+ #include <mutex>
+ #include <dlfcn.h>
+ #include <inttypes.h>
+ #include <stdatomic.h>
+ #include <optional>
++#include <unistd.h>
+ 
+ #include <cutils/properties.h>
+ #include <log/log.h>
+@@ -99,6 +102,10 @@
  
  #define DISPLAY_COUNT       1
  
 +#define FBIOBLANK               0x4611
 +#define FB_BLANK_UNBLANK        0
++#define FB_BLANK_POWERDOWN      4
 +
  /*
   * DEBUG_SCREENSHOTS: set to true to check that screenshots are not all
   * black pixels.
-@@ -2702,6 +2705,15 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
-         int mode) {
+@@ -3915,6 +3922,22 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
+              int mode, bool stateLockHeld) {
      ALOGD("Set power mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
              this);
-+	if (mode == 2)//Awaking the lcd
-+	{
-+		int fd, ret;
-+		fd = open("/dev/graphics/fb0",O_WRONLY);
-+		ret = ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
++    if (mode == HWC_POWER_MODE_OFF || mode == HWC_POWER_MODE_NORMAL) {
++        const int fbBlankMode = mode == HWC_POWER_MODE_OFF ? FB_BLANK_POWERDOWN
++                                                           : FB_BLANK_UNBLANK;
++        int fd = open("/dev/graphics/fb0", O_WRONLY);
++        if (fd < 0) {
++            ALOGE("Error opening LCD framebuffer: %d (%s)", errno, strerror(errno));
++        } else {
++            int ret = ioctl(fd, FBIOBLANK, fbBlankMode);
++            close(fd);
 +
-+		if (ret < 0)
-+			ALOGE("Error waking up LCD: %d (%s)\n", ret, strerror(errno));
-+	}
++            if (ret < 0) {
++                ALOGE("Error setting LCD blank mode %d: %d (%s)", fbBlankMode, errno,
++                        strerror(errno));
++            }
++        }
++    }
      int32_t type = hw->getDisplayType();
      int currentMode = hw->getPowerMode();
  
--- 
-2.20.1
