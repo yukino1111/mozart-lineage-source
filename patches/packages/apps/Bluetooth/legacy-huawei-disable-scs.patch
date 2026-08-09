@@ -1,0 +1,15 @@
+diff --git a/Android.bp b/Android.bp
+index c16faff..90f64e2 100644
+--- a/Android.bp
++++ b/Android.bp
+@@ -37,7 +37,9 @@ cc_library_shared {
+         "-Wno-unused-parameter",
+     ],
+     sanitize: {
+-        scs: true,
++        // The legacy Huawei Bluetooth blob does not preserve arm64 x18.
++        // Shadow Call Stack would therefore fault while loading this JNI DSO.
++        scs: false,
+     },
+ }
+ 

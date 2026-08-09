@@ -1,0 +1,21 @@
+diff --git a/init/first_stage_mount.cpp b/init/first_stage_mount.cpp
+index 8eb2f97489a9b3c5245f2e68ec1adc1d1e70f1b6..a34b689637df98b6ec42e0137643568ee0e085cb 100644
+--- a/init/first_stage_mount.cpp
++++ b/init/first_stage_mount.cpp
+@@ -462,6 +462,16 @@ bool FirstStageMount::TrySwitchSystemAsRoot() {
+             LOG(ERROR) << "check_most_at_once forbidden on external media";
+             return false;
+         }
++
++        // The legacy hi3635 kernel mounts these partitions from its MMC probe before userspace.
++        // They cannot be moved below the read-only system root, and the device init rc mounts
++        // them again during the fs trigger.
++        for (const auto* mount_point : {"/mnvm2:0", "/modem_log"}) {
++            if (umount2(mount_point, MNT_DETACH) == 0) {
++                LOG(INFO) << "Detached legacy kernel mount at '" << mount_point << "'";
++            }
++        }
++
+         SwitchRoot("/system");
+     } else {
+         PLOG(ERROR) << "Failed to mount /system";

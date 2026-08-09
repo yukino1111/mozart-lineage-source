@@ -1,0 +1,13 @@
+diff --git a/media/libaudiohal/FactoryHalHidl.cpp b/media/libaudiohal/FactoryHalHidl.cpp
+index 5985ef03ac560ffd4e415becbaaf7f1ea4afa873..4ac2fc075297b3252348f966601360d2a9598c9f 100644
+--- a/media/libaudiohal/FactoryHalHidl.cpp
++++ b/media/libaudiohal/FactoryHalHidl.cpp
+@@ -94,7 +94,7 @@ bool hasHalService(const std::string& package, const std::string& version,
+ }  // namespace
+ 
+ void* createPreferredImpl(const std::string& package, const std::string& interface) {
+-    for (auto version = detail::sAudioHALVersions; version != nullptr; ++version) {
++    for (auto version = detail::sAudioHALVersions; *version != nullptr; ++version) {
+         void* rawInterface = nullptr;
+         if (hasHalService(package, *version, interface)
+                 && createHalService(*version, interface, &rawInterface)) {

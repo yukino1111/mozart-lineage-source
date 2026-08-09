@@ -1,0 +1,27 @@
+diff --git a/gnss/1.0-legacy/Gnss.cpp b/gnss/1.0-legacy/Gnss.cpp
+index 5baae78..73aea41 100644
+--- a/gnss/1.0-legacy/Gnss.cpp
++++ b/gnss/1.0-legacy/Gnss.cpp
+@@ -272,8 +272,20 @@ void Gnss::nmeaCb(GpsUtcTime timestamp, const char* nmea, int length) {
+         return;
+     }
+ 
+-    android::hardware::hidl_string nmeaString;
+-    nmeaString.setToExternal(nmea, length);
++    if (nmea == nullptr || length <= 0) {
++        ALOGE("%s: Invalid NMEA buffer", __func__);
++        return;
++    }
++
++    size_t nmeaLength = static_cast<size_t>(length);
++    if (nmea[nmeaLength - 1] == '\0') {
++        --nmeaLength;
++    }
++
++    // Legacy GNSS HALs do not guarantee that nmea[length] is a terminating
++    // NUL, which setToExternal() requires. Copy the reported bytes into an
++    // owned HIDL string so the terminator is always present.
++    android::hardware::hidl_string nmeaString(nmea, nmeaLength);
+     auto ret = sGnssCbIface->gnssNmeaCb(timestamp, nmeaString);
+     if (!ret.isOk()) {
+         ALOGE("%s: Unable to invoke callback", __func__);

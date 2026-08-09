@@ -1,0 +1,33 @@
+# Device nodes
+type mozart_fsck_block_device, dev_type;
+type mozart_hwlog_device, dev_type;
+type mozart_hisitest_block_device, dev_type;
+type mozart_nve_device, dev_type;
+type mozart_oeminfo_device_dir, dev_type;
+
+# Data files
+type modem_log_file, file_type;
+type modem_nv_file, file_type;
+type splash2_data_file, file_type;
+type mozart_gps_data_file, file_type, data_file_type, core_data_file_type;
+type mozart_sensors_data_file, file_type, data_file_type, core_data_file_type;
+
+# Service sockets
+type mozart_oeminfo_socket, file_type;
+type mozart_gps_socket, file_type;
+type mozart_tee_socket, file_type;
+
+# Kernel interfaces
+type mozart_debugfs_ion, fs_type, debugfs_type;
+type mozart_proc_gpu_memory, fs_type, proc_type;
+type mozart_sysfs_audio_info, fs_type, sysfs_type;
+type mozart_sysfs_boardinfo, fs_type, sysfs_type;
+type mozart_sysfs_block2mtd, fs_type, sysfs_type;
+type mozart_sysfs_devfreq, fs_type, sysfs_type;
+type mozart_sysfs_fb, fs_type, sysfs_type;
+type mozart_sysfs_gps, fs_type, sysfs_type;
+type mozart_sysfs_hmp, fs_type, sysfs_type;
+type mozart_sysfs_ksm, fs_type, sysfs_type;
+type mozart_sysfs_mmc_queue, fs_type, sysfs_type;
+type mozart_sysfs_perfhub, fs_type, sysfs_type;
+type mozart_sysfs_sensors, fs_type, sysfs_type;

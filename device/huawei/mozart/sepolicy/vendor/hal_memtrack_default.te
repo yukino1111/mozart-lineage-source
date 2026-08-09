@@ -1,0 +1,2 @@
+r_dir_file(hal_memtrack_default, mozart_debugfs_ion)
+allow hal_memtrack_default mozart_proc_gpu_memory:file r_file_perms;

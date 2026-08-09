@@ -1,0 +1,170 @@
+diff --git a/bcmdhd/wifi_hal/wifi_hal.cpp b/bcmdhd/wifi_hal/wifi_hal.cpp
+index 258725cbd66c065f31c6c4775adca67eef30c0d1..4e7a21bc38a53bccdae67a0498b2b2899a09ee11 100755
+--- a/bcmdhd/wifi_hal/wifi_hal.cpp
++++ b/bcmdhd/wifi_hal/wifi_hal.cpp
+@@ -276,6 +276,7 @@ wifi_error wifi_pre_initialize(void)
+     if (socketpair(AF_UNIX, SOCK_STREAM, 0, halInfo->cleanup_socks) == -1) {
+         ALOGE("Could not create cleanup sockets");
+         free(halInfo);
++        halInfo = NULL;
+         return WIFI_ERROR_UNKNOWN;
+     }
+ 
+@@ -283,6 +284,7 @@ wifi_error wifi_pre_initialize(void)
+     if (cmd_sock == NULL) {
+         ALOGE("Could not create handle");
+         free(halInfo);
++        halInfo = NULL;
+         return WIFI_ERROR_UNKNOWN;
+     }
+ 
+@@ -298,6 +300,7 @@ wifi_error wifi_pre_initialize(void)
+         ALOGE("Could not create handle");
+         nl_socket_free(cmd_sock);
+         free(halInfo);
++        halInfo = NULL;
+         return WIFI_ERROR_UNKNOWN;
+     }
+ 
+@@ -315,6 +318,7 @@ wifi_error wifi_pre_initialize(void)
+         nl_socket_free(cmd_sock);
+         nl_socket_free(event_sock);
+         free(halInfo);
++        halInfo = NULL;
+         return WIFI_ERROR_UNKNOWN;
+     }
+ 
+@@ -341,6 +345,7 @@ wifi_error wifi_pre_initialize(void)
+         nl_socket_free(cmd_sock);
+         nl_socket_free(event_sock);
+         free(halInfo);
++        halInfo = NULL;
+         return WIFI_ERROR_UNKNOWN;
+     }
+ 
+@@ -355,20 +360,26 @@ wifi_error wifi_pre_initialize(void)
+         nl_socket_free(event_sock);
+         pthread_mutex_destroy(&halInfo->cb_lock);
+         free(halInfo);
++        halInfo = NULL;
+         return WIFI_ERROR_NOT_AVAILABLE;
+     }
+ 
+     if ((wifi_add_membership(handle, "scan") < 0) ||
+             (wifi_add_membership(handle, "mlme")  < 0) ||
+-            (wifi_add_membership(handle, "regulatory") < 0) ||
+-            (wifi_add_membership(handle, "vendor") < 0)) {
++            (wifi_add_membership(handle, "regulatory") < 0)) {
+         ALOGE("Add membership failed");
+         nl_socket_free(cmd_sock);
+         nl_socket_free(event_sock);
+         pthread_mutex_destroy(&halInfo->cb_lock);
+         free(halInfo);
++        halInfo = NULL;
+         return WIFI_ERROR_NOT_AVAILABLE;
+     }
++    // The vendor multicast group is absent on older nl80211 drivers. Basic
++    // station operation does not depend on it, so keep the HAL available.
++    if (wifi_add_membership(handle, "vendor") < 0) {
++        ALOGW("Vendor multicast group unavailable; vendor events disabled");
++    }
+ 
+     ALOGI("Initialized Wifi HAL Successfully; vendor cmd = %d", NL80211_CMD_VENDOR);
+     wlan0Handle = wifi_get_wlan_interface((wifi_handle)halInfo, ifaceHandles, numIfaceHandles);
+@@ -442,7 +453,9 @@ wifi_error wifi_wait_for_driver_ready(void)
+     do {
+         if ((fd = fopen("/sys/class/net/wlan0", "r")) != NULL) {
+             fclose(fd);
+-            wifi_pre_initialize();
++            if (halInfo == NULL) {
++                return wifi_pre_initialize();
++            }
+             return WIFI_SUCCESS;
+         }
+         usleep(POLL_DRIVER_DURATION_US);
+@@ -497,6 +510,9 @@ static void internal_cleaned_up_handler(wifi_handle handle)
+     DestroyResponseLock();
+     pthread_mutex_destroy(&info->cb_lock);
+     free(info);
++    if (halInfo == info) {
++        halInfo = NULL;
++    }
+ 
+     ALOGI("Internal cleanup completed");
+ }
+@@ -1397,12 +1413,18 @@ static int get_interface(const char *name, interface_info *info)
+ {
+     strlcpy(info->name, name, sizeof(info->name));
+     info->id = if_nametoindex(name);
+-    // ALOGI("found an interface : %s, id = %d", name, info->id);
++    if (info->id == 0) {
++        ALOGE("Could not resolve interface index for %s", name);
++        return WIFI_ERROR_NOT_AVAILABLE;
++    }
+     return WIFI_SUCCESS;
+ }
+ 
+ wifi_error wifi_init_interfaces(wifi_handle handle)
+ {
++    if (handle == NULL) {
++        return WIFI_ERROR_INVALID_ARGS;
++    }
+     hal_info *info = (hal_info *)handle;
+ 
+     struct dirent *de;
+@@ -1429,7 +1451,7 @@ wifi_error wifi_init_interfaces(wifi_handle handle)
+     if (d == 0)
+         return WIFI_ERROR_UNKNOWN;
+ 
+-    info->interfaces = (interface_info **)malloc(sizeof(interface_info *) * n);
++    info->interfaces = (interface_info **)calloc(n, sizeof(interface_info *));
+     if (!info->interfaces) {
+         info->num_interfaces = 0;
+         closedir(d);
+@@ -1443,7 +1465,11 @@ wifi_error wifi_init_interfaces(wifi_handle handle)
+         if (is_wifi_interface(de->d_name)) {
+             interface_info *ifinfo = (interface_info *)malloc(sizeof(interface_info));
+             if (!ifinfo) {
++                for (int j = 0; j < i; ++j) {
++                    free(info->interfaces[j]);
++                }
+                 free(info->interfaces);
++                info->interfaces = NULL;
+                 info->num_interfaces = 0;
+                 closedir(d);
+                 return WIFI_ERROR_OUT_OF_MEMORY;
+@@ -1460,14 +1486,33 @@ wifi_error wifi_init_interfaces(wifi_handle handle)
+ 
+     closedir(d);
+ 
+-    info->num_interfaces = n;
++    if (i == 0) {
++        free(info->interfaces);
++        info->interfaces = NULL;
++        info->num_interfaces = 0;
++        return WIFI_ERROR_NOT_AVAILABLE;
++    }
++
++    info->num_interfaces = i;
+     return WIFI_SUCCESS;
+ }
+ 
+ wifi_error wifi_get_ifaces(wifi_handle handle, int *num, wifi_interface_handle **interfaces)
+ {
++    if (handle == NULL || num == NULL || interfaces == NULL) {
++        return WIFI_ERROR_INVALID_ARGS;
++    }
+     hal_info *info = (hal_info *)handle;
+ 
++    if (info->interfaces == NULL || info->num_interfaces <= 0) {
++        wifi_error status = wifi_init_interfaces(handle);
++        if (status != WIFI_SUCCESS) {
++            *interfaces = NULL;
++            *num = 0;
++            return status;
++        }
++    }
++
+     *interfaces = (wifi_interface_handle *)info->interfaces;
+     *num = info->num_interfaces;
+ 

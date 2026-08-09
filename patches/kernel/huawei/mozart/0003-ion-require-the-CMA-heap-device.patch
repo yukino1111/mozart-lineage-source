@@ -1,0 +1,27 @@
+From e1fd18ab58ecf1f8764c7f248fac4761be5afa7f Mon Sep 17 00:00:00 2001
+From: yukino1111 <107763725+yukino1111@users.noreply.github.com>
+Date: Sun, 9 Aug 2026 14:29:26 +0800
+Subject: [PATCH 3/4] ion: require the CMA heap device
+
+---
+ drivers/staging/android/ion/ion_cma_heap.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/staging/android/ion/ion_cma_heap.c b/drivers/staging/android/ion/ion_cma_heap.c
+index 346df57b..fc056433 100644
+--- a/drivers/staging/android/ion/ion_cma_heap.c
++++ b/drivers/staging/android/ion/ion_cma_heap.c
+@@ -207,8 +207,11 @@ struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *data)
+ 	cma_heap->heap.ops = &ion_cma_ops;
+ 	/* get device from private heaps data, later it will be
+ 	 * used to make the link with reserved CMA memory */
+-	//cma_heap->dev = data->priv;
+-	cma_heap->dev = NULL;
++	if (!data->priv) {
++		kfree(cma_heap);
++		return ERR_PTR(-EINVAL);
++	}
++	cma_heap->dev = data->priv;
+ 	cma_heap->heap.type = ION_HEAP_TYPE_DMA;
+ 	return &cma_heap->heap;
+ }

@@ -1,0 +1,48 @@
+diff --git a/src/com/android/networkstack/netlink/TcpSocketTracker.java b/src/com/android/networkstack/netlink/TcpSocketTracker.java
+index ef33f13a119fe8068ebc5de3af416619deec1251..1f9469739cd3530812f8cac2382e32676cfb8b23 100644
+--- a/src/com/android/networkstack/netlink/TcpSocketTracker.java
++++ b/src/com/android/networkstack/netlink/TcpSocketTracker.java
+@@ -578,7 +578,20 @@ public class TcpSocketTracker {
+         public boolean isTcpInfoParsingSupported() {
+             // Request tcp info from NetworkStack directly needs extra SELinux permission added
+             // after Q release.
+-            return ShimUtils.isReleaseOrDevelopmentApiAbove(Build.VERSION_CODES.Q);
++            if (!ShimUtils.isReleaseOrDevelopmentApiAbove(Build.VERSION_CODES.Q)) return false;
++
++            // TcpSocketTracker needs tcpi_segs_out and tcpi_segs_in, which were added to
++            // struct tcp_info in Linux 4.2. Older kernels return a shorter structure that cannot
++            // provide the packet counters used by data-stall detection.
++            final String[] version = Os.uname().release.split("\\.", 3);
++            if (version.length < 2) return false;
++            try {
++                final int major = Integer.parseInt(version[0]);
++                final int minor = Integer.parseInt(version[1]);
++                return major > 4 || (major == 4 && minor >= 2);
++            } catch (NumberFormatException e) {
++                return false;
++            }
+         }
+ 
+         /**
+diff --git a/src/com/android/server/connectivity/NetworkMonitor.java b/src/com/android/server/connectivity/NetworkMonitor.java
+index fe393f9a8db8eaa07b7b8df6a76a6d9e1d1eb9b4..f3cb0463aeb9ff05c733855bdab26e05d3e15dbe 100755
+--- a/src/com/android/server/connectivity/NetworkMonitor.java
++++ b/src/com/android/server/connectivity/NetworkMonitor.java
+@@ -3448,12 +3448,15 @@ public class NetworkMonitor extends StateMachine {
+ 
+     @Nullable
+     private static TcpSocketTracker getTcpSocketTrackerOrNull(Context context, Network network) {
+-        return ((Dependencies.DEFAULT.getDeviceConfigPropertyInt(
++        final TcpSocketTracker.Dependencies dependencies =
++                new TcpSocketTracker.Dependencies(context);
++        return (((Dependencies.DEFAULT.getDeviceConfigPropertyInt(
+                 NAMESPACE_CONNECTIVITY,
+                 CONFIG_DATA_STALL_EVALUATION_TYPE,
+                 DEFAULT_DATA_STALL_EVALUATION_TYPES)
+                 & DATA_STALL_EVALUATION_TYPE_TCP) != 0)
+-                    ? new TcpSocketTracker(new TcpSocketTracker.Dependencies(context), network)
++                && dependencies.isTcpInfoParsingSupported())
++                    ? new TcpSocketTracker(dependencies, network)
+                     : null;
+     }
+ 

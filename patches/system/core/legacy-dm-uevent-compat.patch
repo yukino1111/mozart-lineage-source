@@ -1,0 +1,23 @@
+diff --git a/fs_mgr/libdm/dm.cpp b/fs_mgr/libdm/dm.cpp
+index 9a958f0..14a2ac2 100644
+--- a/fs_mgr/libdm/dm.cpp
++++ b/fs_mgr/libdm/dm.cpp
+@@ -109,10 +109,14 @@ bool DeviceMapper::DeleteDevice(const std::string& name,
+         return false;
+     }
+ 
+-    // Check to make sure appropriate uevent is generated so ueventd will
+-    // do the right thing and remove the corresponding device node and symlinks.
+-    CHECK(io.flags & DM_UEVENT_GENERATED_FLAG)
+-            << "Didn't generate uevent for [" << name << "] removal";
++    // Older device-mapper implementations (including this device's 3.10
++    // kernel) remove the mapping successfully without returning the uevent
++    // flag added by newer kernels. The stale node is harmless and is removed
++    // on reboot, so do not abort vold after a successful DM_DEV_REMOVE ioctl.
++    if (!(io.flags & DM_UEVENT_GENERATED_FLAG)) {
++        LOG(WARNING) << "Didn't generate uevent for [" << name
++                     << "] removal; continuing for legacy kernel";
++    }
+ 
+     if (timeout_ms <= std::chrono::milliseconds::zero()) {
+         return true;

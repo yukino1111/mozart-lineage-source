@@ -1,0 +1,120 @@
+From ccacd6a4499d3e95c6d6bf9729e22e9aa29039d4 Mon Sep 17 00:00:00 2001
+From: yukino1111 <107763725+yukino1111@users.noreply.github.com>
+Date: Sun, 9 Aug 2026 14:28:58 +0800
+Subject: [PATCH 3/3] light: synchronize the mozart framebuffer state
+
+---
+ light/2.0/default/Light.cpp                   | 48 ++++++++++++++++++-
+ light/2.0/default/Light.h                     |  3 ++
+ .../android.hardware.light@2.0-service.rc     |  2 +-
+ 3 files changed, 51 insertions(+), 2 deletions(-)
+
+diff --git a/light/2.0/default/Light.cpp b/light/2.0/default/Light.cpp
+index 5484d2db43..f1a11245fb 100644
+--- a/light/2.0/default/Light.cpp
++++ b/light/2.0/default/Light.cpp
+@@ -16,9 +16,16 @@
+ 
+ #define LOG_TAG "light"
+ 
++#include <android-base/properties.h>
+ #include <log/log.h>
+ 
++#include <errno.h>
++#include <fcntl.h>
++#include <linux/fb.h>
+ #include <stdio.h>
++#include <string.h>
++#include <sys/ioctl.h>
++#include <unistd.h>
+ 
+ #include "Light.h"
+ 
+@@ -28,6 +35,30 @@ namespace light {
+ namespace V2_0 {
+ namespace implementation {
+ 
++namespace {
++
++bool isMozart() {
++    static const bool value = android::base::GetProperty("ro.product.device", "") == "mozart";
++    return value;
++}
++
++bool unblankFramebuffer() {
++    const int fd = open("/dev/graphics/fb0", O_WRONLY);
++    if (fd < 0) {
++        ALOGE("Error opening LCD framebuffer: %s", strerror(errno));
++        return false;
++    }
++
++    const int ret = ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
++    if (ret < 0) {
++        ALOGE("Error unblanking LCD framebuffer: %s", strerror(errno));
++    }
++    close(fd);
++    return ret == 0;
++}
++
++}  // namespace
++
+ static_assert(LIGHT_FLASH_NONE == static_cast<int>(Flash::NONE),
+     "Flash::NONE must match legacy value.");
+ static_assert(LIGHT_FLASH_TIMED == static_cast<int>(Flash::TIMED),
+@@ -64,7 +95,22 @@ Return<Status> Light::setLight(Type type, const LightState& state)  {
+         .brightnessMode = static_cast<int>(state.brightnessMode),
+     };
+ 
+-    int ret = hwLight->set_light(hwLight, &legacyState);
++    int ret;
++    if (type == Type::BACKLIGHT && isMozart()) {
++        const bool backlightOn = (state.color & 0x00ffffff) != 0;
++        std::lock_guard<std::mutex> lock(mFramebufferMutex);
++        bool framebufferReady = true;
++        if (backlightOn && !mBacklightOn) {
++            // Unblank before enabling the backlight so the previous front buffer is not exposed.
++            framebufferReady = unblankFramebuffer();
++        }
++        ret = hwLight->set_light(hwLight, &legacyState);
++        if (ret == 0) {
++            mBacklightOn = backlightOn && framebufferReady;
++        }
++    } else {
++        ret = hwLight->set_light(hwLight, &legacyState);
++    }
+ 
+     switch (ret) {
+         case -ENOSYS:
+diff --git a/light/2.0/default/Light.h b/light/2.0/default/Light.h
+index 8851461de1..e88f32384d 100644
+--- a/light/2.0/default/Light.h
++++ b/light/2.0/default/Light.h
+@@ -22,6 +22,7 @@
+ #include <hidl/Status.h>
+ #include <hidl/MQDescriptor.h>
+ #include <map>
++#include <mutex>
+ 
+ namespace android {
+ namespace hardware {
+@@ -49,6 +50,8 @@ struct Light : public ILight {
+ 
+    private:
+     std::map<Type, light_device_t*> mLights;
++    std::mutex mFramebufferMutex;
++    bool mBacklightOn = false;
+ };
+ 
+ extern "C" ILight* HIDL_FETCH_ILight(const char* name);
+diff --git a/light/2.0/default/android.hardware.light@2.0-service.rc b/light/2.0/default/android.hardware.light@2.0-service.rc
+index b54ca95a05..a72b61492c 100644
+--- a/light/2.0/default/android.hardware.light@2.0-service.rc
++++ b/light/2.0/default/android.hardware.light@2.0-service.rc
+@@ -2,6 +2,6 @@ service vendor.light-hal-2-0 /vendor/bin/hw/android.hardware.light@2.0-service
+     interface android.hardware.light@2.0::ILight default
+     class hal
+     user system
+-    group system
++    group system graphics
+     # shutting off lights while powering-off
+     shutdown critical

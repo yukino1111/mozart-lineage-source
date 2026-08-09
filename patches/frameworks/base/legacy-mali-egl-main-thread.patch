@@ -1,0 +1,220 @@
+diff --git a/core/jni/android_os_GraphicsEnvironment.cpp b/core/jni/android_os_GraphicsEnvironment.cpp
+index 4f3f283859b48d10ce4dc7c1b59a06f542c2b66d..9a54d826cdf3dc4ddf9cf14c038f29a9ab456510 100644
+--- a/core/jni/android_os_GraphicsEnvironment.cpp
++++ b/core/jni/android_os_GraphicsEnvironment.cpp
+@@ -16,13 +16,125 @@
+ 
+ #define LOG_TAG "GraphicsEnvironment"
+ 
++#include <EGL/egl.h>
++#include <android-base/properties.h>
+ #include <graphicsenv/GraphicsEnv.h>
++#include <log/log.h>
+ #include <nativehelper/ScopedUtfChars.h>
+ #include <nativeloader/native_loader.h>
++
++#include <mutex>
++#include <thread>
++#include <unistd.h>
++
+ #include "core_jni_helpers.h"
+ 
+ namespace {
+ 
++extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay display, EGLint name);
++
++struct LegacyEglWarmupResult {
++    EGLDisplay display = EGL_NO_DISPLAY;
++    EGLint getDisplayError = EGL_SUCCESS;
++    EGLBoolean initialized = EGL_FALSE;
++    EGLint major = 0;
++    EGLint minor = 0;
++    EGLint initializeError = EGL_SUCCESS;
++    bool publicExtensions = false;
++    EGLint publicExtensionsError = EGL_SUCCESS;
++    bool privateExtensions = false;
++    EGLint privateExtensionsError = EGL_SUCCESS;
++    EGLBoolean chosen = EGL_FALSE;
++    EGLint count = 0;
++    EGLint chooseError = EGL_SUCCESS;
++    bool usable = false;
++};
++
++LegacyEglWarmupResult initializeLegacyEgl(bool retain) {
++    LegacyEglWarmupResult result;
++    result.display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
++    result.getDisplayError = eglGetError();
++    if (result.display == EGL_NO_DISPLAY) {
++        return result;
++    }
++
++    result.initialized = eglInitialize(result.display, &result.major, &result.minor);
++    result.initializeError = eglGetError();
++    result.publicExtensions = eglQueryString(result.display, EGL_EXTENSIONS) != nullptr;
++    result.publicExtensionsError = eglGetError();
++    result.privateExtensions =
++            eglQueryStringImplementationANDROID(result.display, EGL_EXTENSIONS) != nullptr;
++    result.privateExtensionsError = eglGetError();
++
++    EGLint attribs[] = {
++            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
++            EGL_RED_SIZE, 8,
++            EGL_GREEN_SIZE, 8,
++            EGL_BLUE_SIZE, 8,
++            EGL_ALPHA_SIZE, 8,
++            EGL_DEPTH_SIZE, 0,
++            EGL_CONFIG_CAVEAT, EGL_NONE,
++            EGL_STENCIL_SIZE, 8,
++            EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
++            EGL_NONE,
++    };
++    EGLConfig config = nullptr;
++    result.count = 1;
++    result.chosen =
++            eglChooseConfig(result.display, attribs, &config, 1, &result.count);
++    result.chooseError = eglGetError();
++    result.usable = result.initialized != EGL_FALSE && result.major >= 1 &&
++            result.privateExtensions && result.chosen != EGL_FALSE && result.count == 1;
++
++    if (!retain || !result.usable) {
++        eglTerminate(result.display);
++    }
++    return result;
++}
++
++void logLegacyEglWarmup(const char* stage, const LegacyEglWarmupResult& result) {
++    ALOGI("Mozart legacy EGL main-thread warmup pid=%d tid=%d stage=%s "
++          "display=%p/%#x initialized=%u version=%d.%d/%#x public=%d/%#x "
++          "private=%d/%#x chosen=%u count=%d/%#x usable=%d",
++          getpid(), gettid(), stage, result.display, result.getDisplayError,
++          result.initialized, result.major, result.minor, result.initializeError,
++          result.publicExtensions, result.publicExtensionsError, result.privateExtensions,
++          result.privateExtensionsError, result.chosen, result.count, result.chooseError,
++          result.usable);
++}
++
++void warmupLegacyEglOnMainThread() {
++    static std::mutex mutex;
++    static pid_t warmedPid = -1;
++
++    if (!android::base::GetBoolProperty("ro.hwui.legacy_egl_main_thread_warmup", false)) {
++        return;
++    }
++
++    const pid_t pid = getpid();
++    if (gettid() != pid) {
++        ALOGW("Skipping Mozart legacy EGL warmup outside process main thread: pid=%d tid=%d",
++              pid, gettid());
++        return;
++    }
++
++    std::lock_guard<std::mutex> lock(mutex);
++    if (warmedPid == pid) {
++        return;
++    }
++
++    LegacyEglWarmupResult workerResult;
++    std::thread worker([&workerResult]() {
++        workerResult = initializeLegacyEgl(false);
++    });
++    worker.join();
++    logLegacyEglWarmup("sacrificial-worker", workerResult);
++
++    const LegacyEglWarmupResult mainResult = initializeLegacyEgl(true);
++    logLegacyEglWarmup("retained-main", mainResult);
++    warmedPid = pid;
++}
++
+ bool isDebuggable_native() {
+     return android::GraphicsEnv::getInstance().isDebuggable();
+ }
+@@ -45,6 +157,7 @@ void setGpuStats_native(JNIEnv* env, jobject clazz, jstring driverPackageName,
+                                                     driverVersionNameChars.c_str(),
+                                                     driverVersionCode, driverBuildTime,
+                                                     appPackageNameChars.c_str(), vulkanVersion);
++    warmupLegacyEglOnMainThread();
+ }
+ 
+ void setAngleInfo_native(JNIEnv* env, jobject clazz, jstring path, jstring appName, jstring devOptIn,
+diff --git a/libs/hwui/apex/jni_runtime.cpp b/libs/hwui/apex/jni_runtime.cpp
+index a114e2f4215705b5e5fb08972e5795cd6568ac16..5f9cc1ffde82c850cca5ffd50543e9009ec876f2 100644
+--- a/libs/hwui/apex/jni_runtime.cpp
++++ b/libs/hwui/apex/jni_runtime.cpp
+@@ -174,4 +174,4 @@ void zygote_preload_graphics() {
+     if (Properties::peekRenderPipelineType() == RenderPipelineType::SkiaGL) {
+         eglGetDisplay(EGL_DEFAULT_DISPLAY);
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/libs/hwui/renderthread/RenderThread.cpp b/libs/hwui/renderthread/RenderThread.cpp
+index 206b58f62ea72108c731a540e38aaa2f5ff8a0b3..f804d4ae2c6054f44fff128ae89b223670557934 100644
+--- a/libs/hwui/renderthread/RenderThread.cpp
++++ b/libs/hwui/renderthread/RenderThread.cpp
+@@ -31,6 +31,7 @@
+ #include "utils/TraceUtils.h"
+ 
+ #include <GrContextOptions.h>
++#include <android-base/properties.h>
+ #include <gl/GrGLInterface.h>
+ 
+ #include <sys/resource.h>
+@@ -387,11 +388,14 @@ bool RenderThread::isCurrent() {
+ 
+ void RenderThread::preload() {
+     // EGL driver is always preloaded only if HWUI renders with GL.
+-    if (Properties::getRenderPipelineType() == RenderPipelineType::SkiaGL) {
++    if (Properties::getRenderPipelineType() == RenderPipelineType::SkiaGL &&
++        !base::GetBoolProperty("debug.hwui.disable_egl_preload", false)) {
+         std::thread eglInitThread([]() { eglGetDisplay(EGL_DEFAULT_DISPLAY); });
+         eglInitThread.detach();
+     } else {
+-        requireVkContext();
++        if (Properties::getRenderPipelineType() == RenderPipelineType::SkiaVulkan) {
++            requireVkContext();
++        }
+     }
+     HardwareBitmapUploader::initialize();
+ }
+diff --git a/libs/hwui/tests/unit/StringUtilsTests.cpp b/libs/hwui/tests/unit/StringUtilsTests.cpp
+index 04fbb512e5984ba5565f237d78c35770ab693298..72ccd898fc60e9927cc432e4e390fc86cbd20e9c 100644
+--- a/libs/hwui/tests/unit/StringUtilsTests.cpp
++++ b/libs/hwui/tests/unit/StringUtilsTests.cpp
+@@ -30,6 +30,11 @@ TEST(StringUtils, simpleBuildSet) {
+     EXPECT_FALSE(collection.has("d"));
+ }
+ 
++TEST(StringUtils, nullOrEmptyBuildSet) {
++    EXPECT_TRUE(StringUtils::split(nullptr).empty());
++    EXPECT_TRUE(StringUtils::split("").empty());
++}
++
+ TEST(StringUtils, advancedBuildSet) {
+     auto collection = StringUtils::split("GL_ext1 GL_ext2 GL_ext3");
+ 
+diff --git a/libs/hwui/utils/StringUtils.cpp b/libs/hwui/utils/StringUtils.cpp
+index 304982e8e493c6d3d680ffc9bc8ee9e8438188a4..a2ab10d053fec885943e930108031bf87846d1c4 100644
+--- a/libs/hwui/utils/StringUtils.cpp
++++ b/libs/hwui/utils/StringUtils.cpp
+@@ -21,6 +21,10 @@ namespace uirenderer {
+ 
+ unordered_string_set StringUtils::split(const char* spacedList) {
+     unordered_string_set set;
++    if (spacedList == nullptr || spacedList[0] == '\0') {
++        return set;
++    }
++
+     const char* current = spacedList;
+     const char* head = current;
+     do {
+@@ -29,7 +33,9 @@ unordered_string_set StringUtils::split(const char* spacedList) {
+         if (s.length()) {
+             set.insert(std::move(s));
+         }
+-        current = head + 1;
++        if (head != nullptr) {
++            current = head + 1;
++        }
+     } while (head);
+     return set;
+ }

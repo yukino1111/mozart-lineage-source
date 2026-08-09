@@ -1,0 +1,17 @@
+# gpsdaemon daemon
+type gpsdaemon, domain;
+type gpsdaemon_exec, exec_type, file_type, system_file_type;
+
+# Started by init
+init_daemon_domain(gpsdaemon)
+
+allow gpsdaemon mozart_gps_data_file:dir rw_dir_perms;
+allow gpsdaemon mozart_gps_data_file:file create_file_perms;
+allow gpsdaemon mozart_gps_data_file:fifo_file create_file_perms;
+allow gpsdaemon shell_exec:file rx_file_perms;
+allow gpsdaemon { toolbox_exec vendor_toolbox_exec }:file rx_file_perms;
+allow gpsdaemon mozart_sysfs_gps:dir search;
+allow gpsdaemon mozart_sysfs_gps:file r_file_perms;
+
+type mozart_ctl_gpsd_prop, property_type;
+set_prop(gpsdaemon, mozart_ctl_gpsd_prop)

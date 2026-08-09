@@ -1,0 +1,49 @@
+diff --git a/cryptfs.cpp b/cryptfs.cpp
+index 3c6ed15..842f298 100644
+--- a/cryptfs.cpp
++++ b/cryptfs.cpp
+@@ -1714,12 +1714,13 @@ static int create_encrypted_random_key(const char* passwd, unsigned char* master
+     return encrypt_master_key(passwd, salt, key_buf, master_key, crypt_ftr, true);
+ }
+ 
+-static void ensure_subdirectory_unmounted(const char *prefix) {
++static int ensure_subdirectory_unmounted(const char *prefix) {
++    int rc = 0;
+     std::vector<std::string> umount_points;
+     std::unique_ptr<FILE, int (*)(FILE*)> mnts(setmntent("/proc/mounts", "r"), endmntent);
+     if (!mnts) {
+         SLOGW("could not read mount files");
+-        return;
++        return -1;
+     }
+ 
+     //Find sudirectory mount point
+@@ -1747,8 +1748,11 @@ static void ensure_subdirectory_unmounted(const char *prefix) {
+         SLOGW("unmounting sub-directory mount %s\n", mount_point.c_str());
+         if (umount(mount_point.c_str()) != 0) {
+             SLOGE("unmounting %s failed: %s\n", mount_point.c_str(), strerror(errno));
++            rc = -1;
+         }
+     }
++
++    return rc;
+ }
+ 
+ static int wait_and_unmount(const char* mountpoint) {
+@@ -2764,7 +2768,15 @@ int cryptfs_enable_internal(int crypt_type, const char* passwd, int no_ui) {
+          * /data, set a property saying we're doing inplace encryption,
+          * and restart the framework.
+          */
+-        wait_and_unmount(DATA_MNT_POINT);
++        /* Android 11 bind-mounts app data outside /data.  These mounts keep
++         * the userdata block device busy after /data itself is unmounted,
++         * preventing dm-crypt from opening it exclusively.
++         */
++        if (ensure_subdirectory_unmounted("/data_mirror") ||
++            wait_and_unmount(DATA_MNT_POINT)) {
++            SLOGE("Failed to unmount userdata bind mounts");
++            goto error_shutting_down;
++        }
+         if (fs_mgr_do_tmpfs_mount(DATA_MNT_POINT)) {
+             goto error_shutting_down;
+         }

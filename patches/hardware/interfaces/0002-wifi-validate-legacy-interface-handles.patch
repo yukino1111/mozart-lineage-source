@@ -1,0 +1,31 @@
+From 7fab8eb768c6e1d1f9945e6c5b83975d923f2e96 Mon Sep 17 00:00:00 2001
+From: yukino1111 <107763725+yukino1111@users.noreply.github.com>
+Date: Sun, 9 Aug 2026 14:28:58 +0800
+Subject: [PATCH 2/3] wifi: validate legacy interface handles
+
+---
+ wifi/1.4/default/wifi_legacy_hal.cpp | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/wifi/1.4/default/wifi_legacy_hal.cpp b/wifi/1.4/default/wifi_legacy_hal.cpp
+index 75f22ec3ea..19ea0ee284 100644
+--- a/wifi/1.4/default/wifi_legacy_hal.cpp
++++ b/wifi/1.4/default/wifi_legacy_hal.cpp
+@@ -1359,8 +1359,17 @@ wifi_error WifiLegacyHal::retrieveIfaceHandles() {
+         LOG(ERROR) << "Failed to enumerate interface handles";
+         return status;
+     }
++    if (num_iface_handles < 0 ||
++        (num_iface_handles > 0 && iface_handles == nullptr)) {
++        LOG(ERROR) << "Legacy HAL returned an invalid interface handle list";
++        return WIFI_ERROR_NOT_AVAILABLE;
++    }
+     iface_name_to_handle_.clear();
+     for (int i = 0; i < num_iface_handles; ++i) {
++        if (iface_handles[i] == nullptr) {
++            LOG(WARNING) << "Legacy HAL returned a null interface handle";
++            continue;
++        }
+         std::array<char, IFNAMSIZ> iface_name_arr = {};
+         status = global_func_table_.wifi_get_iface_name(
+             iface_handles[i], iface_name_arr.data(), iface_name_arr.size());

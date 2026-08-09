@@ -1,0 +1,22 @@
+From 1e8c66d28353e9cafe6594139c9d1d3cde726786 Mon Sep 17 00:00:00 2001
+From: yukino1111 <107763725+yukino1111@users.noreply.github.com>
+Date: Sun, 9 Aug 2026 14:29:26 +0800
+Subject: [PATCH 1/4] mozart: disable kernel debug information
+
+---
+ arch/arm64/configs/lineage_mozart_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/configs/lineage_mozart_defconfig b/arch/arm64/configs/lineage_mozart_defconfig
+index 468325fd..82ab3dc6 100755
+--- a/arch/arm64/configs/lineage_mozart_defconfig
++++ b/arch/arm64/configs/lineage_mozart_defconfig
+@@ -180,7 +180,7 @@ CONFIG_MAGIC_SYSRQ=y
+ CONFIG_DEBUG_FS=y
+ CONFIG_DEBUG_KERNEL=y
+ # CONFIG_SCHED_DEBUG is not set
+-CONFIG_DEBUG_INFO=y
++# CONFIG_DEBUG_INFO is not set
+ CONFIG_ATOMIC64_SELFTEST=y
+ CONFIG_PRINTK_TIME=y
+ CONFIG_HISI_TIME=y

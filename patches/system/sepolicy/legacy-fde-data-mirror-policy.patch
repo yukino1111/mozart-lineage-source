@@ -1,0 +1,48 @@
+diff --git a/prebuilts/api/30.0/private/domain.te b/prebuilts/api/30.0/private/domain.te
+index 7116dad..92c17cd 100644
+--- a/prebuilts/api/30.0/private/domain.te
++++ b/prebuilts/api/30.0/private/domain.te
+@@ -363,6 +363,7 @@ neverallow {
+   domain
+   -init
+   -installd
++  -vold
+   -zygote
+ } mirror_data_file:dir *;
+ 
+diff --git a/prebuilts/api/30.0/private/vold.te b/prebuilts/api/30.0/private/vold.te
+index dea24a5..d0e7cfe 100644
+--- a/prebuilts/api/30.0/private/vold.te
++++ b/prebuilts/api/30.0/private/vold.te
+@@ -17,3 +17,7 @@ domain_trans(vold, fsck_exec, fsck_untrusted);
+ # from accidentally writing when the mount point isn't present.
+ type_transition vold storage_file:dir storage_stub_file;
+ type_transition vold mnt_media_rw_file:dir mnt_media_rw_stub_file;
++
++# Legacy FDE must remove Android 11's userdata bind mounts outside /data
++# before dm-crypt can open the underlying block device exclusively.
++allow vold mirror_data_file:dir search;
+diff --git a/private/domain.te b/private/domain.te
+index 7116dad..92c17cd 100644
+--- a/private/domain.te
++++ b/private/domain.te
+@@ -363,6 +363,7 @@ neverallow {
+   domain
+   -init
+   -installd
++  -vold
+   -zygote
+ } mirror_data_file:dir *;
+ 
+diff --git a/private/vold.te b/private/vold.te
+index dea24a5..d0e7cfe 100644
+--- a/private/vold.te
++++ b/private/vold.te
+@@ -17,3 +17,7 @@ domain_trans(vold, fsck_exec, fsck_untrusted);
+ # from accidentally writing when the mount point isn't present.
+ type_transition vold storage_file:dir storage_stub_file;
+ type_transition vold mnt_media_rw_file:dir mnt_media_rw_stub_file;
++
++# Legacy FDE must remove Android 11's userdata bind mounts outside /data
++# before dm-crypt can open the underlying block device exclusively.
++allow vold mirror_data_file:dir search;

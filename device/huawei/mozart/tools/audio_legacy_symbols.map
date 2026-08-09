@@ -1,0 +1,7 @@
+UCNV_FROM_U_CALLBACK_STOP_60 UCNV_FROM_U_CALLBACK_STOP_66
+UCNV_TO_U_CALLBACK_STOP_60 UCNV_TO_U_CALLBACK_STOP_66
+ucnv_close_60 ucnv_close_66
+ucnv_convertEx_60 ucnv_convertEx_66
+ucnv_open_60 ucnv_open_66
+ucnv_setFromUCallBack_60 ucnv_setFromUCallBack_66
+ucnv_setToUCallBack_60 ucnv_setToUCallBack_66

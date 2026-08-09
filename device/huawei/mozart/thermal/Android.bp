@@ -1,0 +1,12 @@
+cc_library_shared {
+    name: "thermal.hi3635",
+    vendor: true,
+    relative_install_path: "hw",
+    srcs: ["thermal.c"],
+    header_libs: ["libhardware_headers"],
+    shared_libs: ["liblog"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+}

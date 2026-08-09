@@ -1,0 +1,316 @@
+diff --git a/core/Makefile b/core/Makefile
+index 027df5828ed35889ad97abb67f4ea4a091947eae..3e651e9276b3c3ad63c7904a897e5b1dc0193aca 100644
+--- a/core/Makefile
++++ b/core/Makefile
+@@ -4348,6 +4348,9 @@ endif
+ ifeq ($(BOARD_USES_FULL_RECOVERY_IMAGE),true)
+ 	$(hide) echo "full_recovery_image=true" >> $@
+ endif
++ifeq ($(BOARD_SKIP_INSTALL_RECOVERY),true)
++	$(hide) echo "skip_install_recovery=true" >> $@
++endif
+ ifdef BUILDING_VENDOR_IMAGE
+ 	$(hide) echo "board_builds_vendorimage=true" >> $@
+ endif
+@@ -5000,12 +5003,16 @@ INTERNAL_OTA_METADATA := $(PRODUCT_OUT)/ota_metadata
+ ifeq ($(TARGET_BUILD_VARIANT),user)
+     $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := false
+ else
++ifneq ($(filter true,$(TARGET_DISABLE_LINEAGE_BACKUPTOOL) $(PRODUCT_DISABLE_LINEAGE_BACKUPTOOL)),)
++    $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := false
++else
+ ifneq ($(LINEAGE_BUILD),)
+     $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := true
+ else
+     $(INTERNAL_OTA_PACKAGE_TARGET): backuptool := false
+ endif
+ endif
++endif
+ 
+ $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
+ $(INTERNAL_OTA_PACKAGE_TARGET): .KATI_IMPLICIT_OUTPUTS := $(INTERNAL_OTA_METADATA)
+diff --git a/tools/fileslist_util.py b/tools/fileslist_util.py
+index ff40d51a021dae7415f3b45509df317c37b73437..196951ab7acd744025847e75686f0c7c7d434275 100755
+--- a/tools/fileslist_util.py
++++ b/tools/fileslist_util.py
+@@ -27,7 +27,7 @@ def PrintCanonicalList(path):
+   with open(path) as jf:
+     data = json.load(jf)
+   for line in data:
+-    print "{0:12d}  {1}".format(line["Size"], line["Name"])
++    print("{0:12d}  {1}".format(line["Size"], line["Name"]))
+ 
+ def PrintUsage(name):
+   print("""
+@@ -39,7 +39,7 @@ Usage: %s -[nc] json_files_list
+ def main(argv):
+   try:
+     opts, args = getopt.getopt(argv[1:], "nc", "")
+-  except getopt.GetoptError, err:
++  except getopt.GetoptError as err:
+     print(err)
+     PrintUsage(argv[0])
+     sys.exit(2)
+diff --git a/tools/generate-notice-files.py b/tools/generate-notice-files.py
+index 18f2166fbde2c3a0be9b60a9ae7c545a3fa4b33c..017d2c077bcd38414e6a4b7a7db86f05a77b4d2d 100755
+--- a/tools/generate-notice-files.py
++++ b/tools/generate-notice-files.py
+@@ -1,4 +1,4 @@
+-#!/usr/bin/env python
++#!/usr/bin/env python3
+ #
+ # Copyright (C) 2012 The Android Open Source Project
+ #
+@@ -23,9 +23,12 @@ Generate the Android notice files, including both text and html files.
+ 
+ -h to display this usage message and exit.
+ """
++from __future__ import print_function
++
+ from collections import defaultdict
+ import argparse
+ import hashlib
++import io
+ import itertools
+ import os
+ import os.path
+@@ -42,7 +45,7 @@ HTML_ESCAPE_TABLE = {
+     }
+ 
+ def hexify(s):
+-    return ("%02x"*len(s)) % tuple(map(ord, s))
++    return "".join("%02x" % (c if isinstance(c, int) else ord(c)) for c in s)
+ 
+ def md5sum(filename):
+     """Calculate an MD5 of the file given by FILENAME,
+@@ -64,6 +67,10 @@ def html_escape(text):
+     """Produce entities within text."""
+     return "".join(HTML_ESCAPE_TABLE.get(c,c) for c in text)
+ 
++def read_text(filename):
++    with open(filename, "rb") as input_file:
++        return input_file.read().decode("utf-8", "replace")
++
+ HTML_OUTPUT_CSS="""
+ <style type="text/css">
+ body { padding: 0; font-family: sans-serif; }
+@@ -88,15 +95,16 @@ def combine_notice_files_html(file_hash, input_dirs, output_filename):
+         id_count += 1
+ 
+     # Open the output file, and output the header pieces
+-    output_file = open(output_filename, "wb")
++    output_file = io.open(output_filename, "w", encoding="utf-8")
+ 
+-    print >> output_file, "<html><head>"
+-    print >> output_file, HTML_OUTPUT_CSS
+-    print >> output_file, '</head><body topmargin="0" leftmargin="0" rightmargin="0" bottommargin="0">'
++    print("<html><head>", file=output_file)
++    print(HTML_OUTPUT_CSS, file=output_file)
++    print('</head><body topmargin="0" leftmargin="0" rightmargin="0" bottommargin="0">',
++          file=output_file)
+ 
+     # Output our table of contents
+-    print >> output_file, '<div class="toc">'
+-    print >> output_file, "<ul>"
++    print('<div class="toc">', file=output_file)
++    print("<ul>", file=output_file)
+ 
+     # Flatten the list of lists into a single list of filenames
+     sorted_filenames = sorted(itertools.chain.from_iterable(file_hash))
+@@ -104,46 +112,49 @@ def combine_notice_files_html(file_hash, input_dirs, output_filename):
+     # Print out a nice table of contents
+     for filename in sorted_filenames:
+         stripped_filename = SRC_DIR_STRIP_RE.sub(r"\1", filename)
+-        print >> output_file, '<li><a href="#id%d">%s</a></li>' % (id_table.get(filename), stripped_filename)
++        print('<li><a href="#id%d">%s</a></li>' %
++              (id_table.get(filename), stripped_filename), file=output_file)
+ 
+-    print >> output_file, "</ul>"
+-    print >> output_file, "</div><!-- table of contents -->"
++    print("</ul>", file=output_file)
++    print("</div><!-- table of contents -->", file=output_file)
+     # Output the individual notice file lists
+-    print >>output_file, '<table cellpadding="0" cellspacing="0" border="0">'
++    print('<table cellpadding="0" cellspacing="0" border="0">', file=output_file)
+     for value in file_hash:
+-        print >> output_file, '<tr id="id%d"><td class="same-license">' % id_table.get(value[0])
+-        print >> output_file, '<div class="label">Notices for file(s):</div>'
+-        print >> output_file, '<div class="file-list">'
++        print('<tr id="id%d"><td class="same-license">' % id_table.get(value[0]),
++              file=output_file)
++        print('<div class="label">Notices for file(s):</div>', file=output_file)
++        print('<div class="file-list">', file=output_file)
+         for filename in value:
+-            print >> output_file, "%s <br/>" % (SRC_DIR_STRIP_RE.sub(r"\1", filename))
+-        print >> output_file, "</div><!-- file-list -->"
+-        print >> output_file
+-        print >> output_file, '<pre class="license-text">'
+-        print >> output_file, html_escape(open(value[0]).read())
+-        print >> output_file, "</pre><!-- license-text -->"
+-        print >> output_file, "</td></tr><!-- same-license -->"
+-        print >> output_file
+-        print >> output_file
+-        print >> output_file
++            print("%s <br/>" % (SRC_DIR_STRIP_RE.sub(r"\1", filename)),
++                  file=output_file)
++        print("</div><!-- file-list -->", file=output_file)
++        print(file=output_file)
++        print('<pre class="license-text">', file=output_file)
++        print(html_escape(read_text(value[0])), file=output_file)
++        print("</pre><!-- license-text -->", file=output_file)
++        print("</td></tr><!-- same-license -->", file=output_file)
++        print(file=output_file)
++        print(file=output_file)
++        print(file=output_file)
+ 
+     # Finish off the file output
+-    print >> output_file, "</table>"
+-    print >> output_file, "</body></html>"
++    print("</table>", file=output_file)
++    print("</body></html>", file=output_file)
+     output_file.close()
+ 
+ def combine_notice_files_text(file_hash, input_dirs, output_filename, file_title):
+     """Combine notice files in FILE_HASH and output a text version to OUTPUT_FILENAME."""
+ 
+     SRC_DIR_STRIP_RE = re.compile("(?:" + "|".join(input_dirs) + ")(/.*).txt")
+-    output_file = open(output_filename, "wb")
+-    print >> output_file, file_title
++    output_file = io.open(output_filename, "w", encoding="utf-8")
++    print(file_title, file=output_file)
+     for value in file_hash:
+-      print >> output_file, "============================================================"
+-      print >> output_file, "Notices for file(s):"
++      print("============================================================", file=output_file)
++      print("Notices for file(s):", file=output_file)
+       for filename in value:
+-        print >> output_file, SRC_DIR_STRIP_RE.sub(r"\1", filename)
+-      print >> output_file, "------------------------------------------------------------"
+-      print >> output_file, open(value[0]).read()
++        print(SRC_DIR_STRIP_RE.sub(r"\1", filename), file=output_file)
++      print("------------------------------------------------------------", file=output_file)
++      print(read_text(value[0]), file=output_file)
+     output_file.close()
+ 
+ def combine_notice_files_xml(files_with_same_hash, input_dirs, output_filename):
+@@ -159,10 +170,10 @@ def combine_notice_files_xml(files_with_same_hash, input_dirs, output_filename):
+              id_table[filename] = file_key
+ 
+     # Open the output file, and output the header pieces
+-    output_file = open(output_filename, "wb")
++    output_file = io.open(output_filename, "w", encoding="utf-8")
+ 
+-    print >> output_file, '<?xml version="1.0" encoding="utf-8"?>'
+-    print >> output_file, "<licenses>"
++    print('<?xml version="1.0" encoding="utf-8"?>', file=output_file)
++    print("<licenses>", file=output_file)
+ 
+     # Flatten the list of lists into a single list of filenames
+     sorted_filenames = sorted(id_table.keys())
+@@ -170,10 +181,11 @@ def combine_notice_files_xml(files_with_same_hash, input_dirs, output_filename):
+     # Print out a nice table of contents
+     for filename in sorted_filenames:
+         stripped_filename = SRC_DIR_STRIP_RE.sub(r"\1", filename)
+-        print >> output_file, '<file-name contentId="%s">%s</file-name>' % (id_table.get(filename), stripped_filename)
++        print('<file-name contentId="%s">%s</file-name>' %
++              (id_table.get(filename), stripped_filename), file=output_file)
+ 
+-    print >> output_file
+-    print >> output_file
++    print(file=output_file)
++    print(file=output_file)
+ 
+     processed_file_keys = []
+     # Output the individual notice file lists
+@@ -183,11 +195,12 @@ def combine_notice_files_xml(files_with_same_hash, input_dirs, output_filename):
+             continue
+         processed_file_keys.append(file_key)
+ 
+-        print >> output_file, '<file-content contentId="%s"><![CDATA[%s]]></file-content>' % (file_key, html_escape(open(filename).read()))
+-        print >> output_file
++        print('<file-content contentId="%s"><![CDATA[%s]]></file-content>' %
++              (file_key, html_escape(read_text(filename))), file=output_file)
++        print(file=output_file)
+ 
+     # Finish off the file output
+-    print >> output_file, "</licenses>"
++    print("</licenses>", file=output_file)
+     output_file.close()
+ 
+ def get_args():
+diff --git a/tools/releasetools/common.py b/tools/releasetools/common.py
+index c8389388dffa6c9278f8d455b4f87a36a947ab54..db2fb1f82be6d647652576f7dc8d6f830722054d 100644
+--- a/tools/releasetools/common.py
++++ b/tools/releasetools/common.py
+@@ -3050,6 +3050,9 @@ def MakeRecoveryPatch(input_dir, output_sink, recovery_img, boot_img,
+   if info_dict is None:
+     info_dict = OPTIONS.info_dict
+ 
++  if info_dict.get("skip_install_recovery") == "true":
++    return
++
+   full_recovery_image = info_dict.get("full_recovery_image") == "true"
+   board_uses_vendorimage = info_dict.get("board_uses_vendorimage") == "true"
+   board_builds_vendorimage =  info_dict.get("board_builds_vendorimage") == "true"
+diff --git a/tools/releasetools/ota_from_target_files.py b/tools/releasetools/ota_from_target_files.py
+index 479a8983cd31c918fcda2e23a7b547628798dd11..d8d23e813511bd3d3ca5130999aae490db7deda4 100755
+--- a/tools/releasetools/ota_from_target_files.py
++++ b/tools/releasetools/ota_from_target_files.py
+@@ -727,6 +727,13 @@ def CopyInstallTools(output_zip):
+       output_zip.write(install_source, install_target)
+ 
+ 
++def HasInstallTools():
++  install_path = os.path.join(OPTIONS.input_tmp, "INSTALL")
++  if not os.path.isdir(install_path):
++    return False
++  return any(files for _, _, files in os.walk(install_path))
++
++
+ def WriteFullOTAPackage(input_zip, output_file):
+   target_info = common.BuildInfo(OPTIONS.info_dict, OPTIONS.oem_dicts)
+ 
+@@ -758,14 +765,14 @@ def WriteFullOTAPackage(input_zip, output_file):
+       metadata=metadata,
+       info_dict=OPTIONS.info_dict)
+ 
+-  assert HasRecoveryPatch(input_zip, info_dict=OPTIONS.info_dict)
++  if OPTIONS.info_dict.get("skip_install_recovery") != "true":
++    assert HasRecoveryPatch(input_zip, info_dict=OPTIONS.info_dict)
+ 
+   # Assertions (e.g. downgrade check, device properties check).
+   #ts = target_info.GetBuildProp("ro.build.date.utc")
+   #ts_text = target_info.GetBuildProp("ro.build.date")
+   #script.AssertOlderBuild(ts, ts_text)
+ 
+-  target_info.WriteDeviceAssertions(script, OPTIONS.oem_no_mount)
+   device_specific.FullOTA_Assertions()
+ 
+   block_diff_dict = GetBlockDifferences(target_zip=input_zip, source_zip=None,
+@@ -824,10 +831,14 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
+ 
+   device_specific.FullOTA_InstallBegin()
+ 
+-  CopyInstallTools(output_zip)
+-  script.UnpackPackageDir("install", "/tmp/install")
+-  script.SetPermissionsRecursive("/tmp/install", 0, 0, 0o755, 0o644, None, None)
+-  script.SetPermissionsRecursive("/tmp/install/bin", 0, 0, 0o755, 0o755, None, None)
++  has_install_tools = HasInstallTools()
++  if OPTIONS.backuptool and not has_install_tools:
++    raise common.ExternalError("backuptool requested but install tools are missing")
++  if has_install_tools:
++    CopyInstallTools(output_zip)
++    script.UnpackPackageDir("install", "/tmp/install")
++    script.SetPermissionsRecursive("/tmp/install", 0, 0, 0o755, 0o644, None, None)
++    script.SetPermissionsRecursive("/tmp/install/bin", 0, 0, 0o755, 0o755, None, None)
+ 
+   if target_info.get("system_root_image") == "true":
+     sysmount = "/"
+@@ -1458,7 +1469,6 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_file):
+   CheckVintfIfTrebleEnabled(OPTIONS.target_tmp, target_info)
+ 
+   # Assertions (e.g. device properties check).
+-  target_info.WriteDeviceAssertions(script, OPTIONS.oem_no_mount)
+   device_specific.IncrementalOTA_Assertions()
+ 
+   # Two-step incremental package strategy (in chronological order,

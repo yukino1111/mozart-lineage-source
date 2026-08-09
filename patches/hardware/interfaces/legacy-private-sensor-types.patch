@@ -1,0 +1,52 @@
+diff --git a/sensors/1.0/default/convert.cpp b/sensors/1.0/default/convert.cpp
+index 53ceb0d..49675c5 100644
+--- a/sensors/1.0/default/convert.cpp
++++ b/sensors/1.0/default/convert.cpp
+@@ -24,12 +24,32 @@ namespace sensors {
+ namespace V1_0 {
+ namespace implementation {
+ 
++namespace {
++
++bool isLegacyPrivateSensorType(int32_t type) {
++    return type > SENSOR_TYPE_HINGE_ANGLE && type < SENSOR_TYPE_DEVICE_PRIVATE_BASE;
++}
++
++SensorType convertLegacySensorType(int32_t type) {
++    if (isLegacyPrivateSensorType(type)) {
++        return (SensorType)(SENSOR_TYPE_DEVICE_PRIVATE_BASE + type);
++    }
++
++    return (SensorType)type;
++}
++
++}  // namespace
++
+ void convertFromSensor(const sensor_t &src, SensorInfo *dst) {
+     dst->name = src.name;
+     dst->vendor = src.vendor;
+     dst->version = src.version;
+     dst->sensorHandle = src.handle;
+-    dst->type = (SensorType)src.type;
++    dst->type = convertLegacySensorType(src.type);
++    if (isLegacyPrivateSensorType(src.type)) {
++        LOG(WARNING) << "Remapping legacy private sensor type " << src.type
++                     << " to " << (int32_t)dst->type;
++    }
+     dst->maxRange = src.maxRange;
+     dst->resolution = src.resolution;
+     dst->power = src.power;
+@@ -70,7 +90,7 @@ void convertFromSensorEvent(const sensors_event_t &src, Event *dst) {
+     *dst = {
+             .timestamp = src.timestamp,
+             .sensorHandle = src.sensor,
+-            .sensorType = (SensorType)src.type,
++            .sensorType = convertLegacySensorType(src.type),
+     };
+ 
+     switch (dst->sensorType) {
+@@ -392,4 +412,3 @@ int convertFromRateLevel(RateLevel rate) {
+ }  // namespace sensors
+ }  // namespace hardware
+ }  // namespace android
+-

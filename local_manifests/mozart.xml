@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest>
+  <!-- The maintained final device source is shipped in this repository and
+       installed over this pinned baseline. Unchanged proprietary rootfs
+       prebuilts remain supplied by that baseline. -->
+  <remote name="kirin930" fetch="https://github.com/kirin930-dev" />
+  <project path="device/huawei/mozart" name="android_device_huawei_mozart" remote="kirin930" revision="4a057c26bbc1b85782d10fb99907ec14974433a1" clone-depth="1" />
+  <project path="vendor/huawei/mozart" name="android_vendor_huawei_mozart" remote="kirin930" revision="75a8cc015cd5a7afdffd74c4e5ec90957fb63d5d" clone-depth="1" />
+  <project path="kernel/huawei/mozart" name="android_kernel_huawei_mozart" remote="kirin930" revision="8f4fbfd523464cf1f36263c7e76a3e034d82d7b2" clone-depth="1" />
+</manifest>

@@ -1,0 +1,15 @@
+diff --git a/main/Android.bp b/main/Android.bp
+index 90490ef..017c933 100644
+--- a/main/Android.bp
++++ b/main/Android.bp
+@@ -133,7 +133,9 @@ cc_library_shared {
+         "-DBUILDCFG",
+     ],
+     sanitize: {
+-        scs: true,
++        // The legacy Huawei Bluetooth HAL does not preserve arm64 x18.
++        // Disable SCS for the native stack loaded into the same process.
++        scs: false,
+     },
+ }
+ 

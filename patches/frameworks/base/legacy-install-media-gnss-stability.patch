@@ -1,0 +1,210 @@
+diff --git a/media/jni/android_media_MediaCodecList.cpp b/media/jni/android_media_MediaCodecList.cpp
+index 307d80dc15c02975389c45b87a3428939327af4f..0a261b28a311954c58561f1c2b71d3d2cd13807c 100644
+--- a/media/jni/android_media_MediaCodecList.cpp
++++ b/media/jni/android_media_MediaCodecList.cpp
+@@ -70,6 +70,10 @@ public:
+ 
+     JavaMediaCodecListWrapper(sp<IMediaCodecList> mcl)
+             : mCodecList(mcl) {
++        if (mcl == nullptr) {
++            return;
++        }
++
+         size_t numCodecs = mcl->countCodecs();
+         for (size_t ix = 0; ix < numCodecs; ++ix) {
+             sp<MediaCodecInfo> info = mcl->getCodecInfo(ix);
+@@ -96,15 +100,18 @@ private:
+ 
+ static std::mutex sMutex;
+ static std::unique_ptr<JavaMediaCodecListWrapper> sListWrapper;
++static const JavaMediaCodecListWrapper sEmptyList(nullptr);
+ 
+-static const JavaMediaCodecListWrapper *getCodecList(JNIEnv *env) {
++static const JavaMediaCodecListWrapper *getCodecList(JNIEnv * /* env */) {
+     std::lock_guard<std::mutex> lock(sMutex);
+     if (sListWrapper == nullptr) {
+         sp<IMediaCodecList> mcl = MediaCodecList::getInstance();
+         if (mcl == NULL) {
+-            // This should never happen unless something is really wrong
+-            jniThrowException(
+-                        env, "java/lang/RuntimeException", "cannot get MediaCodecList");
++            // Some legacy media stacks can be late or fail to publish a codec
++            // list. Expose no codecs for this call instead of dereferencing a
++            // null binder and crashing WebView or the client application.
++            ALOGE("cannot get MediaCodecList; returning an empty list");
++            return &sEmptyList;
+         }
+ 
+         sListWrapper.reset(new JavaMediaCodecListWrapper(mcl));
+@@ -344,7 +351,13 @@ static jobject android_media_MediaCodecList_getGlobalSettings(JNIEnv *env, jobje
+         return NULL;
+     }
+ 
+-    const sp<AMessage> settings = mcl->getCodecList()->getGlobalSettings();
++    const sp<IMediaCodecList> codecList = mcl->getCodecList();
++    if (codecList == NULL) {
++        jniThrowException(env, "java/lang/RuntimeException", "cannot get MediaCodecList");
++        return NULL;
++    }
++
++    const sp<AMessage> settings = codecList->getGlobalSettings();
+     if (settings == NULL) {
+         jniThrowException(env, "java/lang/RuntimeException", "cannot get global settings");
+         return NULL;
+@@ -393,4 +406,3 @@ int register_android_media_MediaCodecList(JNIEnv *env) {
+     return AndroidRuntime::registerNativeMethods(env,
+                 "android/media/MediaCodecList", gMethods, NELEM(gMethods));
+ }
+-
+diff --git a/services/core/java/com/android/server/location/gnss/GnssGeofenceProvider.java b/services/core/java/com/android/server/location/gnss/GnssGeofenceProvider.java
+index 53883b91c36debf7febd4f70c32ce8466d98ab53..b84e2eafd32c1e3e202e07b69089abd64c124f8a 100644
+--- a/services/core/java/com/android/server/location/gnss/GnssGeofenceProvider.java
++++ b/services/core/java/com/android/server/location/gnss/GnssGeofenceProvider.java
+@@ -23,6 +23,14 @@ import android.util.SparseArray;
+ import com.android.internal.annotations.GuardedBy;
+ import com.android.internal.annotations.VisibleForTesting;
+ 
++import java.util.concurrent.Callable;
++import java.util.concurrent.ExecutionException;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.Future;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
++
+ /**
+  * Manages GNSS Geofence operations.
+  */
+@@ -30,6 +38,7 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+ 
+     private static final String TAG = "GnssGeofenceProvider";
+     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
++    private static final long NATIVE_CALL_TIMEOUT_MILLIS = 5000;
+ 
+     /** Holds the parameters of a geofence. */
+     private static class GeofenceEntry {
+@@ -49,6 +58,11 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+     private final GnssGeofenceProviderNative mNative;
+     @GuardedBy("mLock")
+     private final SparseArray<GeofenceEntry> mGeofenceEntries = new SparseArray<>();
++    private final ExecutorService mNativeExecutor = Executors.newSingleThreadExecutor(r -> {
++        Thread thread = new Thread(r, "GnssGeofenceProvider");
++        thread.setDaemon(true);
++        return thread;
++    });
+ 
+     GnssGeofenceProvider() {
+         this(new GnssGeofenceProviderNative());
+@@ -66,13 +80,12 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+         synchronized (mLock) {
+             for (int i = 0; i < mGeofenceEntries.size(); i++) {
+                 GeofenceEntry entry = mGeofenceEntries.valueAt(i);
+-                boolean added = mNative.addGeofence(entry.geofenceId, entry.latitude,
+-                        entry.longitude,
+-                        entry.radius,
++                boolean added = runNativeWithTimeout(() -> mNative.addGeofence(
++                        entry.geofenceId, entry.latitude, entry.longitude, entry.radius,
+                         entry.lastTransition, entry.monitorTransitions,
+-                        entry.notificationResponsiveness, entry.unknownTimer);
++                        entry.notificationResponsiveness, entry.unknownTimer));
+                 if (added && entry.paused) {
+-                    mNative.pauseGeofence(entry.geofenceId);
++                    runNativeWithTimeout(() -> mNative.pauseGeofence(entry.geofenceId));
+                 }
+             }
+         }
+@@ -81,7 +94,7 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+     @Override
+     public boolean isHardwareGeofenceSupported() {
+         synchronized (mLock) {
+-            return mNative.isGeofenceSupported();
++            return runNativeWithTimeout(mNative::isGeofenceSupported);
+         }
+     }
+ 
+@@ -90,9 +103,9 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+             double longitude, double radius, int lastTransition, int monitorTransitions,
+             int notificationResponsiveness, int unknownTimer) {
+         synchronized (mLock) {
+-            boolean added = mNative.addGeofence(geofenceId, latitude, longitude, radius,
+-                    lastTransition, monitorTransitions, notificationResponsiveness,
+-                    unknownTimer);
++            boolean added = runNativeWithTimeout(() -> mNative.addGeofence(
++                    geofenceId, latitude, longitude, radius, lastTransition, monitorTransitions,
++                    notificationResponsiveness, unknownTimer));
+             if (added) {
+                 GeofenceEntry entry = new GeofenceEntry();
+                 entry.geofenceId = geofenceId;
+@@ -112,7 +125,7 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+     @Override
+     public boolean removeHardwareGeofence(int geofenceId) {
+         synchronized (mLock) {
+-            boolean removed = mNative.removeGeofence(geofenceId);
++            boolean removed = runNativeWithTimeout(() -> mNative.removeGeofence(geofenceId));
+             if (removed) {
+                 mGeofenceEntries.remove(geofenceId);
+             }
+@@ -123,7 +136,7 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+     @Override
+     public boolean pauseHardwareGeofence(int geofenceId) {
+         synchronized (mLock) {
+-            boolean paused = mNative.pauseGeofence(geofenceId);
++            boolean paused = runNativeWithTimeout(() -> mNative.pauseGeofence(geofenceId));
+             if (paused) {
+                 GeofenceEntry entry = mGeofenceEntries.get(geofenceId);
+                 if (entry != null) {
+@@ -137,7 +150,8 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+     @Override
+     public boolean resumeHardwareGeofence(int geofenceId, int monitorTransitions) {
+         synchronized (mLock) {
+-            boolean resumed = mNative.resumeGeofence(geofenceId, monitorTransitions);
++            boolean resumed = runNativeWithTimeout(
++                    () -> mNative.resumeGeofence(geofenceId, monitorTransitions));
+             if (resumed) {
+                 GeofenceEntry entry = mGeofenceEntries.get(geofenceId);
+                 if (entry != null) {
+@@ -149,6 +163,23 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+         }
+     }
+ 
++    private boolean runNativeWithTimeout(Callable<Boolean> callable) {
++        Future<Boolean> future = mNativeExecutor.submit(callable);
++        try {
++            return future.get(NATIVE_CALL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            Log.e(TAG, "Interrupted waiting for GNSS geofence HAL.", e);
++        } catch (ExecutionException e) {
++            Log.e(TAG, "GNSS geofence HAL call failed.", e);
++        } catch (TimeoutException e) {
++            future.cancel(true);
++            Log.e(TAG, "GNSS geofence HAL call timed out after "
++                    + NATIVE_CALL_TIMEOUT_MILLIS + " ms.", e);
++        }
++        return false;
++    }
++
+     @VisibleForTesting
+     static class GnssGeofenceProviderNative {
+         public boolean isGeofenceSupported() {
+diff --git a/services/core/java/com/android/server/pm/PackageInstallerSession.java b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+index 94a13f9e7340a8db6177c37d68cfc7dbadfd78fe..7052974b9bf294ac063e85b400514550ae0af9bd 100644
+--- a/services/core/java/com/android/server/pm/PackageInstallerSession.java
++++ b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+@@ -1005,9 +1005,13 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
+             // If caller specified a total length, allocate it for them. Free up
+             // cache space to grow, if needed.
+             if (stageDir != null && lengthBytes > 0) {
+-                mContext.getSystemService(StorageManager.class).allocateBytes(
+-                        targetPfd.getFileDescriptor(), lengthBytes,
+-                        PackageHelper.translateAllocateFlags(params.installFlags));
++                try {
++                    mContext.getSystemService(StorageManager.class).allocateBytes(
++                            targetPfd.getFileDescriptor(), lengthBytes,
++                            PackageHelper.translateAllocateFlags(params.installFlags));
++                } catch (IOException e) {
++                    Slog.w(TAG, "Failed to preallocate session bytes; continuing", e);
++                }
+             }
+ 
+             if (offsetBytes > 0) {

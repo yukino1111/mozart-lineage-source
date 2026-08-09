@@ -1,0 +1,27 @@
+# Legacy root symlink is created after the rootfs is tmpfs-backed on this device.
+allow init tmpfs:lnk_file create;
+
+allow init mozart_tee_socket:sock_file create_file_perms;
+allow init mozart_gps_socket:sock_file create_file_perms;
+
+allow init proc_filesystems:file getattr;
+allow init mozart_hisitest_block_device:blk_file setattr;
+allow init mozart_nve_device:chr_file getattr;
+allow init { modem_log_file modem_nv_file }:dir mounton;
+allow init modem_log_file:dir create_dir_perms;
+allow init splash2_data_file:dir { mounton create_dir_perms };
+allow init splash2_data_file:file create_file_perms;
+allow init mozart_sysfs_block2mtd:file w_file_perms;
+allow init mozart_sysfs_boardinfo:file r_file_perms;
+allow init mozart_sysfs_devfreq:file { rw_file_perms setattr };
+allow init mozart_sysfs_fb:file { rw_file_perms setattr };
+allow init mozart_sysfs_hmp:file { rw_file_perms setattr };
+allow init mozart_sysfs_ksm:file w_file_perms;
+allow init mozart_sysfs_mmc_queue:file { rw_file_perms setattr };
+allow init mozart_sysfs_perfhub:file { rw_file_perms setattr };
+allow init mozart_sysfs_sensors:file { rw_file_perms setattr };
+allow init proc_bluetooth_writable:file setattr;
+allow init { proc_uid_cputime_removeuid proc_uid_cputime_showstat }:file setattr;
+allow init sysfs_devices_system_cpu:file w_file_perms;
+allow init sysfs_bluetooth_writable:file { rw_file_perms setattr };
+allow init sysfs_wlan_fwpath:file { rw_file_perms setattr };

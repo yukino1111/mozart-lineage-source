@@ -1,0 +1,3 @@
+# The legacy 3.10 crypto API requests the selected AES driver while
+# constructing the dm-crypt CBC/GIV transform, even when it is built-in.
+allow vold kernel:system module_request;

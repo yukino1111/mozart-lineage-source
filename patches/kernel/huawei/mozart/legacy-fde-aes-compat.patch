@@ -1,0 +1,17 @@
+diff --git a/arch/arm64/configs/lineage_mozart_defconfig b/arch/arm64/configs/lineage_mozart_defconfig
+--- a/arch/arm64/configs/lineage_mozart_defconfig
++++ b/arch/arm64/configs/lineage_mozart_defconfig
+@@ -1202,9 +1202,9 @@ CONFIG_ARM64_CRYPTO=y
+ CONFIG_CRYPTO_SHA1_ARM64_CE=y
+ CONFIG_CRYPTO_SHA2_ARM64_CE=y
+ CONFIG_CRYPTO_GHASH_ARM64_CE=y
+-CONFIG_CRYPTO_AES_ARM64_CE=y
+-CONFIG_CRYPTO_AES_ARM64_CE_CCM=y
+-CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
++# CONFIG_CRYPTO_AES_ARM64_CE is not set
++# CONFIG_CRYPTO_AES_ARM64_CE_CCM is not set
++# CONFIG_CRYPTO_AES_ARM64_CE_BLK is not set
+ CONFIG_CRYPTO_AES_ARM64_NEON_BLK=y
+ CONFIG_CRYPTO_CRC32_ARM64=y
+ CONFIG_CRYPTO_AEAD=y
+
