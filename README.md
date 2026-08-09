@@ -1,4 +1,4 @@
-# mozart-patches: LineageOS 18.1
+# mozart-lineage-source: LineageOS 18.1
 
 Maintained device source and upstream patch stack for running LineageOS 18.1
 on the Huawei MediaPad M2 8.0 (`mozart`, HiSilicon Kirin 930/hi3635).
