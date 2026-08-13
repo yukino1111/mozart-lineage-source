@@ -68,10 +68,11 @@ validate_load_segments() {
 for libdir in lib lib64; do
     source_ion="$VENDOR_PROPRIETARY/$libdir/libion.so"
     mozart_ion="$VENDOR_PROPRIETARY/$libdir/libion_mozart.so"
+    copybit="$VENDOR_PROPRIETARY/$libdir/hw/copybit.hi3635.so"
     gralloc="$VENDOR_PROPRIETARY/$libdir/hw/gralloc.hi3635.so"
     mali="$VENDOR_PROPRIETARY/vendor/$libdir/egl/libGLES_mali.so"
 
-    for required in "$source_ion" "$gralloc" "$mali"; do
+    for required in "$source_ion" "$copybit" "$gralloc" "$mali"; do
         if [[ ! -f "$required" ]]; then
             echo "error: missing proprietary blob: $required" >&2
             echo "run scripts/extract-proprietary-blobs.sh first if necessary" >&2

@@ -53,8 +53,10 @@ check_prebuilt hw_healthd 6cad7ff3470a05df2bccef2489ba96d07286052d
 check_prebuilt oeminfo_nvm_server 5656ecd5fade408108a36a8e1d73dc88adebea75
 check_prebuilt teecd 9f7a96b1e658f67d08abe2b67ba710fbfe023c92
 
+# repo represents project metadata as a .git symlink, so exclude both
+# directories and symlinks. A trailing slash only protects directories.
 rsync -a --delete \
-    --exclude='/.git/' \
+    --exclude='/.git' \
     --exclude='/patches/' \
     --exclude='/rootdir/sbin/hw_healthd' \
     --exclude='/rootdir/sbin/oeminfo_nvm_server' \
