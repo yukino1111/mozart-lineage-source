@@ -16,6 +16,12 @@ the maintained local changes.
 The vendor and kernel baselines are pinned in `local_manifests/mozart.xml` and
 remain separate upstream repositories. Only local differences are stored here.
 
+The complete tested integration is exported under `patches/final/` from the
+exact revisions pinned by the local manifest. It contains only public source
+changes; B217 firmware binaries, Cromite APKs and release signing material are
+excluded. `proprietary-files/mozart-b217.txt` records hashes and extraction
+paths for the stock files without redistributing them.
+
 ## Retained third-party patches
 
 - Hardware bitmap workaround: Bilux (`i.bilux@gmail.com`), with the patch also

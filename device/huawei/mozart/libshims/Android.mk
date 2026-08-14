@@ -13,11 +13,31 @@ LOCAL_MODULE_TAGS := optional
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
+LOCAL_SRC_FILES := camera_legacy.c
+LOCAL_MODULE := libshim_camera_legacy
+LOCAL_MODULE_TAGS := optional
+LOCAL_MULTILIB := 32
+LOCAL_STATIC_LIBRARIES := libgcc
+LOCAL_LDFLAGS := \
+    -Wl,--undefined=__aeabi_d2lz \
+    -Wl,--undefined=__aeabi_d2ulz
+include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
 LOCAL_SRC_FILES := \
     gui/ISensorServer.cpp \
     gui/SensorManager.cpp
-LOCAL_SHARED_LIBRARIES := libbase libbinder libsensor libcutils libhardware libhidlbase libsync libui libnativeloader libgui libutils liblog
+LOCAL_SRC_FILES_32 := \
+    gui/CameraMetadata.cpp \
+    gui/Fence.cpp \
+    gui/GraphicBuffer.cpp \
+    gui/GraphicBufferMapper.cpp
+LOCAL_SHARED_LIBRARIES := libbase libbinder libcamera_client libcamera_metadata libsensor libcutils libhardware libhidlbase libsync libui libnativeloader libgui libutils liblog
 LOCAL_MODULE := libshim_gui
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+# glgps4752 is 64-bit while the legacy camera stack still consumes the 32-bit
+# shim. CameraMetadata has a 32-bit-only object layout, so keep the camera
+# sources on arm and build only the sensor compatibility sources for arm64.
+LOCAL_MULTILIB := both
 include $(BUILD_SHARED_LIBRARY)

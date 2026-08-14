@@ -9,3 +9,6 @@ allow gpsdaemon mozart_gps_data_file:dir rw_dir_perms;
 allow gpsdaemon mozart_gps_data_file:file create_file_perms;
 allow gpsdaemon mozart_gps_data_file:fifo_file create_file_perms;
 allow gpsdaemon shell_exec:file rx_file_perms;
+allow gpsdaemon toolbox_exec:file rx_file_perms;
+r_dir_file(gpsdaemon, mozart_sysfs_gps_config)
+set_prop(gpsdaemon, mozart_gpsd_ctl_prop)

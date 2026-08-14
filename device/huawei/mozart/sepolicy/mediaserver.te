@@ -1,0 +1,2 @@
+# Legacy CameraSource checks the ION client directory for metadata buffers.
+allow mediaserver mozart_debugfs_ion:dir search;

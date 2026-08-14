@@ -1,0 +1,2 @@
+trustedcore_sfs_property u:object_r:mozart_trustedcore_prop:s0 exact string
+ctl.start$gpsd_4752 u:object_r:mozart_gpsd_ctl_prop:s0

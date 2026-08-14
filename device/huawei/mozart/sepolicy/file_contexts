@@ -19,6 +19,8 @@
 /dev/block/mmcblk0p40					u:object_r:userdata_block_device:s0
 /dev/imgsysbrg_vdec[0-9]*				u:object_r:video_device:s0
 /dev/jpu						u:object_r:video_device:s0
+/dev/media[0-9]*					u:object_r:video_device:s0
+/dev/v4l-subdev[0-9]*					u:object_r:video_device:s0
 /dev/mali0						u:object_r:gpu_device:s0
 /dev/maxim_smartpa_dev					u:object_r:audio_device:s0
 /dev/nve0						u:object_r:mozart_nve_device:s0
@@ -26,12 +28,14 @@
 /dev/speakerID						u:object_r:audio_device:s0
 /dev/tc_ns_client					u:object_r:tee_device:s0
 /dev/tfa9895						u:object_r:audio_device:s0
+/dev/ttyAMA3						u:object_r:mozart_gps_device:s0
 /dev/ttyAMA4						u:object_r:hci_attach_dev:s0
 
 # Data files
 /mnvm2:0(/.*)?						u:object_r:modem_nv_file:s0
 /modem_log(/.*)?					u:object_r:modem_log_file:s0
 /splash2(/.*)?						u:object_r:splash2_data_file:s0
+/data/camera(/.*)?					u:object_r:camera_data_file:s0
 /data/gps(/.*)?						u:object_r:mozart_gps_data_file:s0
 /data/light						u:object_r:mozart_sensors_data_file:s0
 
@@ -46,5 +50,7 @@
 /vendor/bin/mac_addr_normalization_vendor		u:object_r:mac_addr_normalization_vendor_exec:s0
 
 # Sockets
+/dev/socket/gps						u:object_r:gps_control:s0
 /dev/socket/oeminfo_nvm					u:object_r:mozart_oeminfo_socket:s0
 /dev/socket/tee-multi-user				u:object_r:mozart_tee_socket:s0
+/(vendor|system/vendor)/bin/HwCamCfgSvr			u:object_r:hwcamcfgsvr_exec:s0

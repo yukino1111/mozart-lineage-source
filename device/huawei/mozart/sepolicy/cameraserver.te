@@ -1,0 +1,3 @@
+# B217 stream allocation checks the ION client directory while configuring
+# Camera1 recording streams through the Camera2 service.
+allow cameraserver mozart_debugfs_ion:dir search;

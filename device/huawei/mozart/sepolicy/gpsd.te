@@ -4,10 +4,17 @@ type gpsd_exec, exec_type, file_type;
 
 # Started by init
 init_daemon_domain(gpsd)
+net_domain(gpsd)
 
 allow domain gpsd_exec:file getattr;
 
 allow gpsd self:netlink_kobject_uevent_socket create_socket_perms_no_ioctl;
-allow gpsd mozart_gps_data_file:dir r_dir_perms;
-allow gpsd mozart_gps_data_file:file r_file_perms;
+allow gpsd mozart_gps_data_file:dir rw_dir_perms;
+allow gpsd mozart_gps_data_file:file create_file_perms;
 allow gpsd mozart_gps_data_file:fifo_file create_file_perms;
+allow gpsd mozart_gps_device:chr_file rw_file_perms;
+allow gpsd mozart_sysfs_gps:dir search;
+allow gpsd mozart_sysfs_gps:file rw_file_perms;
+allow gpsd self:global_capability_class_set net_admin;
+wakelock_use(gpsd)
+unix_socket_connect(gpsd, dnsproxyd, netd)

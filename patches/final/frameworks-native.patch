@@ -1,0 +1,378 @@
+diff --git a/libs/ui/Gralloc2.cpp b/libs/ui/Gralloc2.cpp
+index 918251f9dc4b283d4f57073a3c99e53c4866a7c3..0ad4382f98a6da5fdd530998c3ce2c13208dfcc0 100644
+--- a/libs/ui/Gralloc2.cpp
++++ b/libs/ui/Gralloc2.cpp
+@@ -45,6 +45,10 @@ uint64_t getValid10UsageBits() {
+         // TODO(b/72323293, b/72703005): Remove these additional bits
+         bits = bits | (1 << 10) | (1 << 13);
+ 
++        // Huawei's B217 camera stack passes its legacy private allocation
++        // flags through GraphicBuffer. The Mozart gralloc0 HAL consumes them.
++        bits = bits | UINT64_C(0x06000000);
++
+ #ifdef ADDNL_GRALLOC_10_USAGE_BITS
+         uint64_t addnl_bits = static_cast<uint64_t>(ADDNL_GRALLOC_10_USAGE_BITS);
+         ALOGI("Adding additional valid usage bits: 0x%" PRIx64, addnl_bits);
+diff --git a/libs/ui/GraphicBufferMapper.cpp b/libs/ui/GraphicBufferMapper.cpp
+index 2d8e5824b0d947043de7492bb68bdf2abd1f8d54..a1d9b1b3117bae48dbaebd99d9857d4f65de910a 100644
+--- a/libs/ui/GraphicBufferMapper.cpp
++++ b/libs/ui/GraphicBufferMapper.cpp
+@@ -37,6 +37,8 @@
+ 
+ #include <system/graphics.h>
+ 
++#include <unistd.h>
++
+ namespace android {
+ // ---------------------------------------------------------------------------
+ 
+@@ -95,6 +97,24 @@ status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)
+ {
+     ATRACE_CALL();
+ 
++    {
++        Mutex::Autolock lock(mLegacyImportMutex);
++        auto imported = mLegacyImportedBuffers.find(handle);
++        if (imported != mLegacyImportedBuffers.end()) {
++            ALOGW_IF(imported->second.lockCount != 0,
++                    "freeing legacy buffer %p with %u active lock(s)",
++                    handle, imported->second.lockCount);
++            int fenceFd = mMapper->unlock(imported->second.handle);
++            if (fenceFd >= 0) {
++                sync_wait(fenceFd, -1);
++                close(fenceFd);
++            }
++            mMapper->freeBuffer(imported->second.handle);
++            mLegacyImportedBuffers.erase(imported);
++            return NO_ERROR;
++        }
++    }
++
+     mMapper->freeBuffer(handle);
+ 
+     return NO_ERROR;
+@@ -146,11 +166,98 @@ status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
+ 
+     const uint64_t usage = static_cast<uint64_t>(
+             android_convertGralloc1To0Usage(producerUsage, consumerUsage));
++
++    {
++        Mutex::Autolock lock(mLegacyImportMutex);
++        auto imported = mLegacyImportedBuffers.find(handle);
++        if (imported != mLegacyImportedBuffers.end()) {
++            if (fenceFd >= 0) {
++                sync_wait(fenceFd, -1);
++                close(fenceFd);
++            }
++            if (imported->second.isYCbCr) {
++                ALOGW("legacy buffer %p was first locked as YCbCr", handle);
++                return BAD_VALUE;
++            }
++            *vaddr = imported->second.data;
++            imported->second.lockCount++;
++            return NO_ERROR;
++        }
++    }
++
++    // Mapper::lock consumes the acquire fence even when it rejects the raw
++    // handle, so preserve a copy for the import-and-retry path.
++    int retryFenceFd = -1;
++    if (fenceFd >= 0) {
++        retryFenceFd = dup(fenceFd);
++        if (retryFenceFd < 0) {
++            ALOGW("failed to duplicate acquire fence for legacy buffer %p", handle);
++        }
++    }
++
+     Gralloc2::Error error = mMapper->lock(handle, usage,
+             asGralloc2Rect(bounds), fenceFd, vaddr);
+ 
+-    ALOGW_IF(error != Gralloc2::Error::NONE, "lock(%p, ...) failed: %d",
+-            handle, error);
++    if (error == Gralloc2::Error::NONE) {
++        if (retryFenceFd >= 0) {
++            close(retryFenceFd);
++        }
++        return NO_ERROR;
++    }
++
++    if (error == Gralloc2::Error::BAD_BUFFER &&
++            (fenceFd < 0 || retryFenceFd >= 0)) {
++        Mutex::Autolock lock(mLegacyImportMutex);
++        auto imported = mLegacyImportedBuffers.find(handle);
++        buffer_handle_t importedHandle = nullptr;
++        bool newImport = false;
++
++        if (imported != mLegacyImportedBuffers.end()) {
++            if (retryFenceFd >= 0) {
++                sync_wait(retryFenceFd, -1);
++                close(retryFenceFd);
++                retryFenceFd = -1;
++            }
++            if (imported->second.isYCbCr) {
++                return BAD_VALUE;
++            }
++            *vaddr = imported->second.data;
++            imported->second.lockCount++;
++            return NO_ERROR;
++        } else {
++            error = mMapper->importBuffer(hardware::hidl_handle(handle), &importedHandle);
++            if (error == Gralloc2::Error::NONE) {
++                newImport = true;
++            }
++        }
++
++        if (error == Gralloc2::Error::NONE) {
++            error = mMapper->lock(importedHandle, usage, asGralloc2Rect(bounds),
++                    retryFenceFd, vaddr);
++            retryFenceFd = -1;
++        }
++
++        if (error == Gralloc2::Error::NONE) {
++            if (newImport) {
++                mLegacyImportedBuffers.emplace(handle,
++                        LegacyImportedBuffer{importedHandle, 1, *vaddr, {}, false});
++                ALOGV("imported legacy raw buffer %p as %p for lock", handle, importedHandle);
++            } else {
++                imported->second.lockCount++;
++            }
++            return NO_ERROR;
++        }
++
++        if (newImport) {
++            mMapper->freeBuffer(importedHandle);
++        }
++    }
++
++    if (retryFenceFd >= 0) {
++        close(retryFenceFd);
++    }
++
++    ALOGW("lock(%p, ...) failed: %d", handle, error);
+ 
+     return static_cast<status_t>(error);
+ }
+@@ -161,8 +268,93 @@ status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,
+     ATRACE_CALL();
+ 
+     Gralloc2::YCbCrLayout layout;
++
++    {
++        Mutex::Autolock lock(mLegacyImportMutex);
++        auto imported = mLegacyImportedBuffers.find(handle);
++        if (imported != mLegacyImportedBuffers.end()) {
++            if (fenceFd >= 0) {
++                sync_wait(fenceFd, -1);
++                close(fenceFd);
++            }
++            if (!imported->second.isYCbCr) {
++                ALOGW("legacy buffer %p was first locked as linear", handle);
++                return BAD_VALUE;
++            }
++            *ycbcr = imported->second.ycbcr;
++            imported->second.lockCount++;
++            return NO_ERROR;
++        }
++    }
++
++    int retryFenceFd = -1;
++    if (fenceFd >= 0) {
++        retryFenceFd = dup(fenceFd);
++        if (retryFenceFd < 0) {
++            ALOGW("failed to duplicate acquire fence for legacy YCbCr buffer %p", handle);
++        }
++    }
++
+     Gralloc2::Error error = mMapper->lock(handle, usage,
+             asGralloc2Rect(bounds), fenceFd, &layout);
++
++    if (error == Gralloc2::Error::BAD_BUFFER &&
++            (fenceFd < 0 || retryFenceFd >= 0)) {
++        Mutex::Autolock lock(mLegacyImportMutex);
++        auto imported = mLegacyImportedBuffers.find(handle);
++        buffer_handle_t importedHandle = nullptr;
++        bool newImport = false;
++
++        if (imported != mLegacyImportedBuffers.end()) {
++            if (retryFenceFd >= 0) {
++                sync_wait(retryFenceFd, -1);
++                close(retryFenceFd);
++                retryFenceFd = -1;
++            }
++            if (!imported->second.isYCbCr) {
++                return BAD_VALUE;
++            }
++            *ycbcr = imported->second.ycbcr;
++            imported->second.lockCount++;
++            return NO_ERROR;
++        } else {
++            error = mMapper->importBuffer(hardware::hidl_handle(handle), &importedHandle);
++            if (error == Gralloc2::Error::NONE) {
++                newImport = true;
++            }
++        }
++
++        if (error == Gralloc2::Error::NONE) {
++            error = mMapper->lock(importedHandle, usage, asGralloc2Rect(bounds),
++                    retryFenceFd, &layout);
++            retryFenceFd = -1;
++        }
++
++        if (error == Gralloc2::Error::NONE) {
++            if (newImport) {
++                android_ycbcr legacyYCbCr = {};
++                legacyYCbCr.y = layout.y;
++                legacyYCbCr.cb = layout.cb;
++                legacyYCbCr.cr = layout.cr;
++                legacyYCbCr.ystride = static_cast<size_t>(layout.yStride);
++                legacyYCbCr.cstride = static_cast<size_t>(layout.cStride);
++                legacyYCbCr.chroma_step = static_cast<size_t>(layout.chromaStep);
++                mLegacyImportedBuffers.emplace(handle,
++                        LegacyImportedBuffer{importedHandle, 1, nullptr, legacyYCbCr, true});
++                ALOGV("imported legacy raw buffer %p as %p for lockYCbCr",
++                        handle, importedHandle);
++            } else {
++                imported->second.lockCount++;
++            }
++        } else if (newImport) {
++            mMapper->freeBuffer(importedHandle);
++        }
++    }
++
++    if (retryFenceFd >= 0) {
++        close(retryFenceFd);
++    }
++
+     if (error == Gralloc2::Error::NONE) {
+         ycbcr->y = layout.y;
+         ycbcr->cb = layout.cb;
+@@ -179,6 +371,29 @@ status_t GraphicBufferMapper::unlockAsync(buffer_handle_t handle, int *fenceFd)
+ {
+     ATRACE_CALL();
+ 
++    {
++        Mutex::Autolock lock(mLegacyImportMutex);
++        auto imported = mLegacyImportedBuffers.find(handle);
++        if (imported != mLegacyImportedBuffers.end()) {
++            *fenceFd = -1;
++            if (imported->second.lockCount > 1) {
++                imported->second.lockCount--;
++                return NO_ERROR;
++            }
++
++            ALOGW_IF(imported->second.lockCount == 0,
++                    "unlock called for unlocked legacy buffer %p", handle);
++            int releaseFenceFd = mMapper->unlock(imported->second.handle);
++            if (releaseFenceFd >= 0) {
++                sync_wait(releaseFenceFd, -1);
++                close(releaseFenceFd);
++            }
++            mMapper->freeBuffer(imported->second.handle);
++            mLegacyImportedBuffers.erase(imported);
++            return NO_ERROR;
++        }
++    }
++
+     *fenceFd = mMapper->unlock(handle);
+ 
+     return NO_ERROR;
+diff --git a/libs/ui/include/ui/GraphicBufferMapper.h b/libs/ui/include/ui/GraphicBufferMapper.h
+index 7cf003dcbae92e951039df28071b2557a1590409..41c548d8405382e3f3a3ba34c86b655e696cc0e6 100644
+--- a/libs/ui/include/ui/GraphicBufferMapper.h
++++ b/libs/ui/include/ui/GraphicBufferMapper.h
+@@ -21,8 +21,10 @@
+ #include <sys/types.h>
+ 
+ #include <memory>
++#include <unordered_map>
+ 
+ #include <ui/PixelFormat.h>
++#include <utils/Mutex.h>
+ #include <utils/Singleton.h>
+ 
+ 
+@@ -91,6 +93,22 @@ private:
+     GraphicBufferMapper();
+ 
+     const std::unique_ptr<const Gralloc2::Mapper> mMapper;
++
++    struct LegacyImportedBuffer {
++        buffer_handle_t handle;
++        uint32_t lockCount;
++        void* data;
++        android_ycbcr ycbcr;
++        bool isYCbCr;
++    };
++
++    // Android 6 vendor processes can receive raw gralloc0 handles through
++    // their private IPC and lock them without importing them first. Cache the
++    // imported clone only across nested locks and release it on the final
++    // unlock. The unsafe asynchronous B217 thumbnail path is disabled by the
++    // camera provider and must not force every frame mapping to remain alive.
++    Mutex mLegacyImportMutex;
++    std::unordered_map<buffer_handle_t, LegacyImportedBuffer> mLegacyImportedBuffers;
+ };
+ 
+ // ---------------------------------------------------------------------------
+@@ -98,4 +116,3 @@ private:
+ }; // namespace android
+ 
+ #endif // ANDROID_UI_BUFFER_MAPPER_H
+-
+diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
+index f513b9fd7f4bb931bb1b60b2805769b59d463618..c98b5cb9a8182fa75db73cee9e925c53ad6f331c 100644
+--- a/services/surfaceflinger/SurfaceFlinger.cpp
++++ b/services/surfaceflinger/SurfaceFlinger.cpp
+@@ -18,15 +18,18 @@
+ #define ATRACE_TAG ATRACE_TAG_GRAPHICS
+ 
+ #include <stdint.h>
++#include <sys/ioctl.h>
+ #include <sys/types.h>
+ #include <algorithm>
+ #include <errno.h>
++#include <fcntl.h>
+ #include <math.h>
+ #include <mutex>
+ #include <dlfcn.h>
+ #include <inttypes.h>
+ #include <stdatomic.h>
+ #include <optional>
++#include <unistd.h>
+ 
+ #include <cutils/properties.h>
+ #include <log/log.h>
+@@ -99,6 +102,10 @@
+ 
+ #define DISPLAY_COUNT       1
+ 
++#define FBIOBLANK               0x4611
++#define FB_BLANK_UNBLANK        0
++#define FB_BLANK_POWERDOWN      4
++
+ /*
+  * DEBUG_SCREENSHOTS: set to true to check that screenshots are not all
+  * black pixels.
+@@ -3915,6 +3922,22 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
+              int mode, bool stateLockHeld) {
+     ALOGD("Set power mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
+             this);
++    if (mode == HWC_POWER_MODE_OFF || mode == HWC_POWER_MODE_NORMAL) {
++        const int fbBlankMode = mode == HWC_POWER_MODE_OFF ? FB_BLANK_POWERDOWN
++                                                           : FB_BLANK_UNBLANK;
++        int fd = open("/dev/graphics/fb0", O_WRONLY);
++        if (fd < 0) {
++            ALOGE("Error opening LCD framebuffer: %d (%s)", errno, strerror(errno));
++        } else {
++            int ret = ioctl(fd, FBIOBLANK, fbBlankMode);
++            close(fd);
++
++            if (ret < 0) {
++                ALOGE("Error setting LCD blank mode %d: %d (%s)", fbBlankMode, errno,
++                        strerror(errno));
++            }
++        }
++    }
+     int32_t type = hw->getDisplayType();
+     int currentMode = hw->getPowerMode();
+ 

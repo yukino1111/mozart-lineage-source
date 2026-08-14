@@ -47,18 +47,17 @@ check_prebuilt() {
     fi
 }
 
-# These three unchanged Huawei executables come from the pinned upstream device
-# baseline. They are deliberately excluded from this public repository.
+# The unchanged health daemon comes from the pinned upstream device baseline.
+# The B217 oeminfo and TEE daemons are installed by the proprietary extraction
+# script and are deliberately excluded from this public repository.
 check_prebuilt hw_healthd 6cad7ff3470a05df2bccef2489ba96d07286052d
-check_prebuilt oeminfo_nvm_server 5656ecd5fade408108a36a8e1d73dc88adebea75
-check_prebuilt teecd 9f7a96b1e658f67d08abe2b67ba710fbfe023c92
 
 rsync -a --delete \
     --exclude='/.git/' \
     --exclude='/patches/' \
-    --exclude='/rootdir/sbin/hw_healthd' \
-    --exclude='/rootdir/sbin/oeminfo_nvm_server' \
-    --exclude='/rootdir/sbin/teecd' \
+    --exclude='/rootdir/sbin/' \
+    --exclude='/prebuilt/cromite/*.apk' \
+    --exclude='/prebuilt/cromite/lib/' \
     "$SOURCE_TREE/" "$TARGET_TREE/"
 
 echo "installed maintained device source: device/huawei/mozart"

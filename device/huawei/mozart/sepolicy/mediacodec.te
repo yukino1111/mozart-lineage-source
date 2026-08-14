@@ -1,0 +1,2 @@
+# The B217 TOPAZ encoder checks the ION client directory for input buffers.
+allow mediacodec mozart_debugfs_ion:dir search;

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Huawei's B217 camera configuration Binder service checks this permission
+     on calls from the camera provider UID. -->
+<permissions>
+    <assign-permission name="android.permission.HW_CAMCFG_SERVICE" uid="cameraserver" />
+</permissions>

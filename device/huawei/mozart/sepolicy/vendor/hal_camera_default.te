@@ -1,0 +1,17 @@
+binder_use(hal_camera_default)
+vndbinder_use(hal_camera_default)
+
+# The camera provider obtains the graphics mapper before importing buffers.
+allow hal_camera_default hal_graphics_mapper_hwservice:hwservice_manager find;
+
+# B217's Camera3 error monitor inspects its owning cameraserver process.
+r_dir_file(hal_camera_default, cameraserver)
+
+# The B217 provider checks ION client accounting while configuring streams.
+allow hal_camera_default mozart_debugfs_ion:dir search;
+
+# The B217 camera module predates set_torch_mode; the provider bridges the
+# framework torch API to the dedicated kernel LED node.
+allow hal_camera_default mozart_sysfs_torch:dir r_dir_perms;
+allow hal_camera_default mozart_sysfs_torch:file rw_file_perms;
+allow hal_camera_default sysfs_leds:dir search;

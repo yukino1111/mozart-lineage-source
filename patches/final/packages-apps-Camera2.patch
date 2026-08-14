@@ -1,0 +1,143 @@
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 6595990ea490e723e84cdabd4f834a2549ea7024..691c09259270bd2867253909628191431c3f1651 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -63,6 +63,7 @@
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.DEFAULT" />
++                <category android:name="android.intent.category.LAUNCHER" />
+             </intent-filter>
+ 
+             <meta-data
+@@ -80,18 +81,6 @@
+                     android:value="com.android.camera.CameraActivity" />
+         </activity>
+ 
+-        <activity-alias
+-            android:name="com.android.camera.CameraLauncher"
+-            android:label="@string/app_name"
+-            android:targetActivity="com.android.camera.CameraActivity">
+-            <intent-filter>
+-                <action android:name="android.intent.action.MAIN" />
+-
+-                <category android:name="android.intent.category.DEFAULT" />
+-                <category android:name="android.intent.category.LAUNCHER" />
+-            </intent-filter>
+-        </activity-alias>
+-
+         <activity
+             android:name="com.android.camera.CaptureActivity"
+             android:label="@string/app_name"
+@@ -157,6 +146,10 @@
+                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+             </intent-filter>
+         </receiver>
++
++        <service
++            android:name="com.android.camera.processing.ProcessingService"
++            android:exported="false" />
+     </application>
+ 
+ </manifest>
+diff --git a/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java b/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java
+index dc7f9003f76f34d6600bfd9167aa5e6d9fb09f30..5af00e8a07c9e63a6165d6572103e4105c5218ed 100644
+--- a/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java
++++ b/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java
+@@ -40,8 +40,13 @@ public class OneCameraFeatureConfigCreator {
+      */
+     public static OneCameraFeatureConfig createDefault(ContentResolver contentResolver,
+             MemoryManager memoryManager) {
+-        // Enable CaptureModule on all M devices.
+-        boolean useCaptureModule = true;
++        // B217 exposes a legacy Huawei HAL whose complete flash state machine
++        // is implemented through the Camera1 parameter interface. The newer
++        // CaptureModule can request AE precapture, but the vendor HAL never
++        // arms the main flash for its Camera2 still request. Use the bundled
++        // PhotoModule, which talks to the same HAL through Camera API1 just as
++        // the stock EMUI camera does.
++        boolean useCaptureModule = false;
+         Log.i(TAG, "CaptureModule? " + useCaptureModule);
+ 
+         // HDR+ has multiple levels of support.
+diff --git a/src/com/android/camera/processing/ProcessingService.java b/src/com/android/camera/processing/ProcessingService.java
+index c67ebd6135c822d264e2f2f52f5c80a2aba86f08..8c0c985805820fc4eadce501818b765dccee4f5b 100644
+--- a/src/com/android/camera/processing/ProcessingService.java
++++ b/src/com/android/camera/processing/ProcessingService.java
+@@ -17,6 +17,7 @@
+ package com.android.camera.processing;
+ 
+ import android.app.Notification;
++import android.app.NotificationChannel;
+ import android.app.NotificationManager;
+ import android.app.Service;
+ import android.content.BroadcastReceiver;
+@@ -24,6 +25,7 @@ import android.content.Context;
+ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.os.IBinder;
++import android.os.Build;
+ import android.os.PowerManager;
+ import android.os.PowerManager.WakeLock;
+ import android.os.Process;
+@@ -74,6 +76,7 @@ public class ProcessingService extends Service implements ProgressListener {
+     private static final Log.Tag TAG = new Log.Tag("ProcessingService");
+     private static final int THREAD_PRIORITY = Process.THREAD_PRIORITY_BACKGROUND;
+     private static final int CAMERA_NOTIFICATION_ID = 2;
++    private static final String CAMERA_NOTIFICATION_CHANNEL_ID = "camera_processing";
+     private Notification.Builder mNotificationBuilder;
+     private NotificationManager mNotificationManager;
+ 
+@@ -113,8 +116,18 @@ public class ProcessingService extends Service implements ProgressListener {
+         intentFilter.addAction(ACTION_PAUSE_PROCESSING_SERVICE);
+         intentFilter.addAction(ACTION_RESUME_PROCESSING_SERVICE);
+         LocalBroadcastManager.getInstance(this).registerReceiver(mServiceController, intentFilter);
+-        mNotificationBuilder = createInProgressNotificationBuilder();
+         mNotificationManager = AndroidServices.instance().provideNotificationManager();
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            NotificationChannel channel = new NotificationChannel(
++                    CAMERA_NOTIFICATION_CHANNEL_ID,
++                    getString(R.string.app_name),
++                    NotificationManager.IMPORTANCE_LOW);
++            channel.setSound(null, null);
++            channel.enableVibration(false);
++            channel.setShowBadge(false);
++            mNotificationManager.createNotificationChannel(channel);
++        }
++        mNotificationBuilder = createInProgressNotificationBuilder();
+     }
+ 
+     @Override
+@@ -259,8 +272,13 @@ public class ProcessingService extends Service implements ProgressListener {
+      * Creates a notification to indicate that a computation is in progress.
+      */
+     private Notification.Builder createInProgressNotificationBuilder() {
+-        return new Notification.Builder(this)
+-                .setSmallIcon(R.drawable.ic_notification)
++        Notification.Builder builder;
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            builder = new Notification.Builder(this, CAMERA_NOTIFICATION_CHANNEL_ID);
++        } else {
++            builder = new Notification.Builder(this);
++        }
++        return builder.setSmallIcon(R.drawable.ic_notification)
+                 .setWhen(System.currentTimeMillis())
+                 .setOngoing(true)
+                 .setContentTitle(this.getText(R.string.app_name));
+diff --git a/src_pd/com/android/camera/util/GservicesHelper.java b/src_pd/com/android/camera/util/GservicesHelper.java
+index 12ae56a5ef52810c52e130c5cbdb6e6cc0450cf8..f5e3baaf8c405959d3b38b520cb89739b7725133 100644
+--- a/src_pd/com/android/camera/util/GservicesHelper.java
++++ b/src_pd/com/android/camera/util/GservicesHelper.java
+@@ -54,8 +54,10 @@ public class GservicesHelper {
+     }
+ 
+     public static boolean useCamera2ApiThroughPortabilityLayer(ContentResolver contentResolver) {
+-        // Use the camera2 API by default. This only affects PhotoModule on L.
+-        return true;
++        // B217's legacy Huawei HAL completes preflash and main-flash sequencing
++        // only through its Camera1 parameter interface, matching the stock
++        // EMUI camera. Keep PhotoModule on Camera API1 for reliable flash.
++        return false;
+     }
+ 
+     public static boolean isGcamEnabled(ContentResolver contentResolver) {

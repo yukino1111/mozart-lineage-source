@@ -7,4 +7,15 @@
   <project path="device/huawei/mozart" name="android_device_huawei_mozart" remote="kirin930" revision="4a057c26bbc1b85782d10fb99907ec14974433a1" clone-depth="1" />
   <project path="vendor/huawei/mozart" name="android_vendor_huawei_mozart" remote="kirin930" revision="75a8cc015cd5a7afdffd74c4e5ec90957fb63d5d" clone-depth="1" />
   <project path="kernel/huawei/mozart" name="android_kernel_huawei_mozart" remote="kirin930" revision="8f4fbfd523464cf1f36263c7e76a3e034d82d7b2" clone-depth="1" />
+  <extend-project path="build/make" name="LineageOS/android_build" revision="1bfc37a3258f1129411e934abc341de9a60e7aaf" />
+  <extend-project path="frameworks/av" name="LineageOS/android_frameworks_av" revision="541d785e2b89cfbc60df0ecae0edff7977283351" />
+  <extend-project path="frameworks/base" name="LineageOS/android_frameworks_base" revision="ea0de66d71ac88db42f26d9b63c9c1941aa097fc" />
+  <extend-project path="frameworks/native" name="LineageOS/android_frameworks_native" revision="38be48f36da1acd812670fbecb75bffca9b4cd98" />
+  <extend-project path="hardware/broadcom/wlan" name="LineageOS/android_hardware_broadcom_wlan" revision="96108864e101415d8f385d47e5bdc0dc7121eaa9" />
+  <extend-project path="hardware/interfaces" name="LineageOS/android_hardware_interfaces" revision="247f33da70920c5d79765faab67ee3191133723c" />
+  <extend-project path="lineage-sdk" name="LineageOS/android_lineage-sdk" revision="087e056d61b788356c3631175fcca4742dace865" />
+  <extend-project path="packages/apps/Camera2" name="LineageOS/android_packages_apps_Camera2" revision="33e54e053cd9d5a8aa853238adfb623841118d56" />
+  <extend-project path="system/bt" name="LineageOS/android_system_bt" revision="269bcb0debd5e4cd7f44dd6588e78f4fe3dc8816" />
+  <extend-project path="system/core" name="LineageOS/android_system_core" revision="976019d07ad1c007043b78450857f428a1440f06" />
+  <extend-project path="vendor/lineage" name="LineageOS/android_vendor_lineage" revision="64ab602c30f36934a304d3e5e418be2179861915" />
 </manifest>

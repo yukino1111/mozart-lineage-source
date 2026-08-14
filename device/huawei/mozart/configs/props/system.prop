@@ -4,6 +4,9 @@ ro.config.hw_dts=false
 # Bluetooth
 ro.bt.bdaddr_path=/data/misc/bluedroid/macbt
 
+# Camera
+ro.vendor.camera.wrapper.hal3TrebleMinorVersion=2
+
 # CPU
 ro.hardware.alter=Hisilicon Kirin 930
 

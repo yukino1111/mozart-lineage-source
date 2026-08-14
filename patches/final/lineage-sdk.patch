@@ -1,0 +1,40 @@
+diff --git a/sdk/src/java/org/lineageos/internal/preference/deviceinfo/LineageVendorSecurityPatchTextView.java b/sdk/src/java/org/lineageos/internal/preference/deviceinfo/LineageVendorSecurityPatchTextView.java
+index 3f0521ab5da10e7d70c131f929ee4be2d172a7db..8cf30ba1d05c9642d012707720c90b73d1a07792 100644
+--- a/sdk/src/java/org/lineageos/internal/preference/deviceinfo/LineageVendorSecurityPatchTextView.java
++++ b/sdk/src/java/org/lineageos/internal/preference/deviceinfo/LineageVendorSecurityPatchTextView.java
+@@ -45,26 +45,17 @@ public class LineageVendorSecurityPatchTextView extends TextView {
+     }
+ 
+     private String getVendorSecurityPatchLevel() {
+-        String patchLevel = SystemProperties.get(KEY_AOSP_VENDOR_SECURITY_PATCH);
+-
+-        if (patchLevel.isEmpty()) {
+-            patchLevel = SystemProperties.get(KEY_LINEAGE_VENDOR_SECURITY_PATCH);
+-        }
+-
+-        if (!patchLevel.isEmpty()) {
+-            try {
+-                SimpleDateFormat template = new SimpleDateFormat("yyyy-MM-dd");
+-                Date patchLevelDate = template.parse(patchLevel);
+-                String format = DateFormat.getBestDateTimePattern(Locale.getDefault(), "dMMMMyyyy");
+-                patchLevel = DateFormat.format(format, patchLevelDate).toString();
+-            } catch (ParseException e) {
+-                // parsing failed, use raw string
+-            }
+-        } else {
+-            patchLevel = getContext().getResources().getString(R.string.unknown);
++        String patchLevel = "2016-10-01"; // From B202(C232)
++
++        try {
++            SimpleDateFormat template = new SimpleDateFormat("yyyy-MM-dd");
++            Date patchLevelDate = template.parse(patchLevel);
++            String format = DateFormat.getBestDateTimePattern(Locale.getDefault(), "dMMMMyyyy");
++            patchLevel = DateFormat.format(format, patchLevelDate).toString();
++        } catch (ParseException e) {
++           // parsing failed, use raw string
+         }
+ 
+         return patchLevel;
+     }
+-
+ }

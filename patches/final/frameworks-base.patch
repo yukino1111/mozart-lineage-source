@@ -1,0 +1,289 @@
+diff --git a/core/jni/android/graphics/Bitmap.cpp b/core/jni/android/graphics/Bitmap.cpp
+index 5a74a2473b320eddde94a8bb745e4c806375e443..f6c7ac546bcb666630c762f2e35a482d74f84497 100755
+--- a/core/jni/android/graphics/Bitmap.cpp
++++ b/core/jni/android/graphics/Bitmap.cpp
+@@ -791,13 +791,13 @@ static jobject Bitmap_copy(JNIEnv* env, jobject, jlong srcHandle,
+                            jint dstConfigHandle, jboolean isMutable) {
+     SkBitmap src;
+     reinterpret_cast<BitmapWrapper*>(srcHandle)->getSkBitmap(&src);
+-    if (dstConfigHandle == GraphicsJNI::hardwareLegacyBitmapConfig()) {
++    /*if (dstConfigHandle == GraphicsJNI::hardwareLegacyBitmapConfig()) {
+         sk_sp<Bitmap> bitmap(Bitmap::allocateHardwareBitmap(src));
+         if (!bitmap.get()) {
+             return NULL;
+         }
+         return createBitmap(env, bitmap.release(), getPremulBitmapCreateFlags(isMutable));
+-    }
++    }*/
+ 
+     SkColorType dstCT = GraphicsJNI::legacyBitmapConfigToColorType(dstConfigHandle);
+     SkBitmap result;
+diff --git a/core/jni/android/graphics/BitmapFactory.cpp b/core/jni/android/graphics/BitmapFactory.cpp
+index 685fcaf152119f66771fe1f7e1f1f0d50e589662..db7f102278b2693fcf4d6cbcb3b553e8d615ce75 100644
+--- a/core/jni/android/graphics/BitmapFactory.cpp
++++ b/core/jni/android/graphics/BitmapFactory.cpp
+@@ -317,6 +317,41 @@ static jobject doDecode(JNIEnv* env, std::unique_ptr<SkStreamRewindable> stream,
+         scaledHeight = static_cast<int>(scaledHeight * scale + 0.5f);
+     }
+ 
++    /* TRONX2100 and RAWMAIN for MTK L861 fixes skewed display for hw bitmaps */
++    /* also needs to revert bitmap copy hw
++     * https://gitlab.bangl.de/crackling-dev/android_frameworks_base/commit/05126d151eb3caa85bd3a039cffb6e37940c3fa4 */
++    const int needsOffset = 32;
++    const int minScaleHandlesize = 16; // we do not handle smaller sizes needsOffset/2
++    if (isHardware && scaledWidth >= minScaleHandlesize && scaledHeight >= minScaleHandlesize) {
++        int rx = scaledWidth % needsOffset;
++        int ry = scaledHeight % needsOffset;
++        bool scaleX = false;
++
++        ALOGI("[Before scaling] scaledWidth: %d, scaledHeight: %d, rx: %d, ry: %d", scaledWidth, scaledHeight, rx, ry);
++        if (rx != 0) {
++            willScale = true;
++            if (rx >= (needsOffset / 2)){
++                scaleX = true; // upscale
++                rx = needsOffset - rx;
++                scaledWidth = scaledWidth + rx;
++            } else {
++                scaledWidth = scaledWidth - rx;
++            }
++        }
++        if (ry != 0) {
++            willScale = true;
++            if (ry >= (needsOffset / 2) || scaleX){
++                // upscale
++                ry = needsOffset - ry;
++                scaledHeight = scaledHeight + ry;
++            } else {
++                scaledHeight = scaledHeight - ry;
++            }
++        }
++        ALOGI("[After scaling] scaledWidth: %d, scaledHeight: %d, rx: %d, ry: %d", scaledWidth, scaledHeight, rx, ry);
++    }
++    /* END TRONX2100 */
++
+     android::Bitmap* reuseBitmap = nullptr;
+     unsigned int existingBufferSize = 0;
+     if (javaBitmap != NULL) {
+diff --git a/graphics/java/android/graphics/Bitmap.java b/graphics/java/android/graphics/Bitmap.java
+index 95a0c56905c0c2435f6280cee55c7151436ff4b8..58f3f0091e17e45d2c888a00a155522a1e559a1a 100644
+--- a/graphics/java/android/graphics/Bitmap.java
++++ b/graphics/java/android/graphics/Bitmap.java
+@@ -655,9 +655,9 @@ public final class Bitmap implements Parcelable {
+      */
+     public Bitmap copy(Config config, boolean isMutable) {
+         checkRecycled("Can't copy a recycled bitmap");
+-        if (config == Config.HARDWARE && isMutable) {
++        /*if (config == Config.HARDWARE && isMutable) {
+             throw new IllegalArgumentException("Hardware bitmaps are always immutable");
+-        }
++        }*/
+         noteHardwareBitmapSlowCall();
+         Bitmap b = nativeCopy(mNativePtr, config.nativeInt, isMutable);
+         if (b != null) {
+diff --git a/libs/hwui/hwui/Bitmap.cpp b/libs/hwui/hwui/Bitmap.cpp
+index c6ef090c1f763d89980c19d6267804c78cb68a21..226c70868799c4756ec8caf2558bdce217a0b390 100644
+--- a/libs/hwui/hwui/Bitmap.cpp
++++ b/libs/hwui/hwui/Bitmap.cpp
+@@ -140,8 +140,7 @@ sk_sp<Bitmap> Bitmap::createFrom(sp<GraphicBuffer> graphicBuffer) {
+         return nullptr;
+     }
+     SkImageInfo info = SkImageInfo::Make(graphicBuffer->getWidth(), graphicBuffer->getHeight(),
+-                                         kRGBA_8888_SkColorType, kPremul_SkAlphaType,
+-                                         SkColorSpace::MakeSRGB());
++                                         kRGBA_8888_SkColorType, kPremul_SkAlphaType);
+     return sk_sp<Bitmap>(new Bitmap(graphicBuffer.get(), info));
+ }
+ 
+diff --git a/libs/hwui/renderthread/OpenGLPipeline.cpp b/libs/hwui/renderthread/OpenGLPipeline.cpp
+index f96001ebdd57bf3d362b960011904ab4c65d054d..ca64a1f3f1e42d9015ed2b19d14c4baa20e852c1 100644
+--- a/libs/hwui/renderthread/OpenGLPipeline.cpp
++++ b/libs/hwui/renderthread/OpenGLPipeline.cpp
+@@ -385,6 +385,8 @@ static bool uploadBitmapToGraphicBuffer(uirenderer::Caches& caches, SkBitmap& bi
+ // TODO: handle SRGB sanely
+ static PixelFormat internalFormatToPixelFormat(GLint internalFormat) {
+     switch (internalFormat) {
++        case GL_ALPHA:
++            return PIXEL_FORMAT_TRANSPARENT;
+         case GL_LUMINANCE:
+             return PIXEL_FORMAT_RGBA_8888;
+         case GL_SRGB8_ALPHA8:
+@@ -407,8 +409,8 @@ sk_sp<Bitmap> OpenGLPipeline::allocateHardwareBitmap(RenderThread& renderThread,
+     uirenderer::Caches& caches = uirenderer::Caches::getInstance();
+ 
+     const SkImageInfo& info = skBitmap.info();
+-    if (info.colorType() == kUnknown_SkColorType || info.colorType() == kAlpha_8_SkColorType) {
+-        ALOGW("unable to create hardware bitmap of colortype: %d", info.colorType());
++    if (info.colorType() == kUnknown_SkColorType) {
++        ALOGW("unable to create hardware bitmap of configuration");
+         return nullptr;
+     }
+ 
+diff --git a/media/jni/android_media_Utils.cpp b/media/jni/android_media_Utils.cpp
+index 458d8471dafdd3c05cb1fafbd9280ef2dc082d1d..f5ed73cdb292420cb21078f77008f92982c1b86e 100644
+--- a/media/jni/android_media_Utils.cpp
++++ b/media/jni/android_media_Utils.cpp
+@@ -18,6 +18,7 @@
+ #define LOG_TAG "AndroidMediaUtils"
+ 
+ #include <hardware/camera3.h>
++#include <cutils/properties.h>
+ #include <utils/Log.h>
+ #include "android_media_Utils.h"
+ 
+@@ -27,6 +28,8 @@
+ 
+ #include <nativehelper/ScopedLocalRef.h>
+ 
++#include <string.h>
++
+ #define ALIGN(x, mask) ( ((x) + (mask) - 1) & ~((mask) - 1) )
+ 
+ namespace android {
+@@ -628,6 +631,26 @@ uint32_t Image_getJpegSize(LockedImage* buffer, bool usingRGBAOverride) {
+         ALOGV("%s: Jpeg size = %d", __FUNCTION__, size);
+     }
+ 
++    // B217 can return a valid JPEG without the camera3 transport footer.
++    // Restrict the compatibility scan to hi3635 and use the final EOI so an
++    // embedded EXIF thumbnail cannot truncate the main image.
++    if (size == 0 && width >= 2 && jpegBuffer[0] == 0xff && jpegBuffer[1] == 0xd8) {
++        char platform[PROPERTY_VALUE_MAX] = {};
++        property_get("ro.board.platform", platform, "");
++        if (!strcmp(platform, "hi3635")) {
++            uint32_t end = width - sizeof(struct camera3_jpeg_blob);
++            while (end >= 2) {
++                if (jpegBuffer[end - 2] == 0xff && jpegBuffer[end - 1] == 0xd9) {
++                    size = end;
++                    ALOGI("%s: inferred missing hi3635 JPEG footer, size=%u",
++                            __FUNCTION__, size);
++                    break;
++                }
++                end--;
++            }
++        }
++    }
++
+     // failed to find size, default to whole buffer
+     if (size == 0) {
+         /*
+@@ -952,4 +975,3 @@ int getBufferHeight(BufferItem* buffer) {
+ }
+ 
+ }  // namespace android
+-
+diff --git a/services/core/java/com/android/server/location/GnssGeofenceProvider.java b/services/core/java/com/android/server/location/GnssGeofenceProvider.java
+index 6ac4aeb7f9ea78d13abd074929a677073d1cad37..47199af427cf3ec331612b3111a500ac13765e25 100644
+--- a/services/core/java/com/android/server/location/GnssGeofenceProvider.java
++++ b/services/core/java/com/android/server/location/GnssGeofenceProvider.java
+@@ -12,6 +12,8 @@ import com.android.internal.annotations.VisibleForTesting;
+ import java.util.concurrent.Callable;
+ import java.util.concurrent.ExecutionException;
+ import java.util.concurrent.FutureTask;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
+ 
+ /**
+  * Manages GNSS Geofence operations.
+@@ -20,6 +22,7 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+ 
+     private static final String TAG = "GnssGeofenceProvider";
+     private static final boolean DEBUG = Log.isLoggable(TAG, Log.DEBUG);
++    private static final long NATIVE_CALL_TIMEOUT_MILLIS = 5000;
+ 
+     /** Holds the parameters of a geofence. */
+     private static class GeofenceEntry {
+@@ -69,12 +72,27 @@ class GnssGeofenceProvider extends IGpsGeofenceHardware.Stub {
+     }
+ 
+     private boolean runOnHandlerThread(Callable<Boolean> callable) {
++        if (Looper.myLooper() == mHandler.getLooper()) {
++            try {
++                return callable.call();
++            } catch (Exception e) {
++                Log.e(TAG, "Failed running callable.", e);
++            }
++            return false;
++        }
++
+         FutureTask<Boolean> futureTask = new FutureTask<>(callable);
+         mHandler.post(futureTask);
+         try {
+-            return futureTask.get();
+-        } catch (InterruptedException | ExecutionException e) {
++            return futureTask.get(NATIVE_CALL_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS);
++        } catch (InterruptedException e) {
++            Thread.currentThread().interrupt();
++            Log.e(TAG, "Interrupted running callable.", e);
++        } catch (ExecutionException e) {
+             Log.e(TAG, "Failed running callable.", e);
++        } catch (TimeoutException e) {
++            Log.e(TAG, "Timed out running callable after "
++                    + NATIVE_CALL_TIMEOUT_MILLIS + " ms.", e);
+         }
+         return false;
+     }
+diff --git a/services/core/java/com/android/server/pm/PackageInstallerSession.java b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+index e6ec80ae1b767476221491ff054fbdd65144a0a3..58a5275bf8e9f2cc7e553632e4451853cebcca94 100644
+--- a/services/core/java/com/android/server/pm/PackageInstallerSession.java
++++ b/services/core/java/com/android/server/pm/PackageInstallerSession.java
+@@ -697,8 +697,12 @@ public class PackageInstallerSession extends IPackageInstallerSession.Stub {
+             // If caller specified a total length, allocate it for them. Free up
+             // cache space to grow, if needed.
+             if (stageDir != null && lengthBytes > 0) {
+-                mContext.getSystemService(StorageManager.class).allocateBytes(targetFd, lengthBytes,
+-                        PackageHelper.translateAllocateFlags(params.installFlags));
++                try {
++                    mContext.getSystemService(StorageManager.class).allocateBytes(targetFd, lengthBytes,
++                            PackageHelper.translateAllocateFlags(params.installFlags));
++                } catch (IOException e) {
++                    Slog.w(TAG, "Failed to preallocate session bytes; continuing", e);
++                }
+             }
+ 
+             if (offsetBytes > 0) {
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index ef8fb37aa3759f404202f18559de0da114a28d9c..9e638465afcf3a715cc0a7744550ee1019114f87 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -8615,6 +8615,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     }
+ 
+     private void sendLidChangeBroadcast() {
++        if (!mSystemBooted) {
++            return;
++        }
+         Log.d(TAG, "Sending cover change broadcast, mLidState=" + mLidState);
+         Intent intent = new Intent(lineageos.content.Intent.ACTION_LID_STATE_CHANGED);
+         intent.putExtra(lineageos.content.Intent.EXTRA_LID_STATE, mLidState);
+diff --git a/services/core/java/com/android/server/webkit/SystemImpl.java b/services/core/java/com/android/server/webkit/SystemImpl.java
+index f77eae9ba4d38cda10fb0a48eecb1a255f53fae0..58b388c308aa3b4effbad68276d67848cc1aaa3a 100644
+--- a/services/core/java/com/android/server/webkit/SystemImpl.java
++++ b/services/core/java/com/android/server/webkit/SystemImpl.java
+@@ -29,6 +29,7 @@ import android.content.res.XmlResourceParser;
+ import android.database.ContentObserver;
+ import android.os.Build;
+ import android.os.RemoteException;
++import android.os.SystemProperties;
+ import android.os.UserHandle;
+ import android.os.UserManager;
+ import android.provider.Settings.Global;
+@@ -62,6 +63,8 @@ public class SystemImpl implements SystemInterface {
+     private static final String TAG_AVAILABILITY = "availableByDefault";
+     private static final String TAG_SIGNATURE = "signature";
+     private static final String TAG_FALLBACK = "isFallback";
++    private static final String PROP_WEBVIEW_MULTIPROCESS_DEFAULT =
++            "ro.webview.multiprocess_default";
+     private final WebViewProviderInfo[] mWebViewProviderPackages;
+ 
+     // Initialization-on-demand holder idiom for getting the WebView provider packages once and
+@@ -297,6 +300,10 @@ public class SystemImpl implements SystemInterface {
+ 
+     @Override
+     public boolean isMultiProcessDefaultEnabled() {
++        if (!SystemProperties.getBoolean(PROP_WEBVIEW_MULTIPROCESS_DEFAULT, true)) {
++            return false;
++        }
++
+         // Multiprocess is enabled for all 64-bit devices, since the ability to run the renderer
+         // process in 32-bit when it's a separate process typically results in a net memory saving.
+         // Multiprocess is also enabled for 32-bit devices unless they report they are "low ram".

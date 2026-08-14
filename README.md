@@ -5,7 +5,8 @@ Maintained device source and upstream patch stack for Huawei MediaPad M2 8.0
 
 This branch contains the final buildable `device/huawei/mozart` source directly.
 Kernel, vendor, AOSP and LineageOS changes remain reproducible patches based on
-exactly pinned [kirin930-dev](https://github.com/kirin930-dev) revisions.
+exactly pinned [kirin930-dev](https://github.com/kirin930-dev) and LineageOS
+revisions.
 
 ## Repository layout
 
@@ -14,6 +15,8 @@ exactly pinned [kirin930-dev](https://github.com/kirin930-dev) revisions.
   patches inherited from the upstream device tree;
 - the other paths below `patches/` contain this branch's maintained changes to
   upstream repositories;
+- `patches/final/` is the complete patch state used by the verified B217 user
+  build; smaller historical patches are retained for attribution;
 - `local_manifests/mozart.xml` pins device, vendor and kernel baselines to exact
   commits.
 
@@ -27,10 +30,19 @@ scripts/apply-local-patches.sh /android/lineage16-mozart
 ```
 
 The script first installs this repository's complete device source and then
-applies the upstream patch stack idempotently. The unchanged Huawei
-`hw_healthd`, `oeminfo_nvm_server` and `teecd` executables are not duplicated
-here; their hashes are verified against the copies supplied by the pinned
-device baseline.
+applies the final patch stack idempotently. The unchanged Huawei `hw_healthd`
+executable remains supplied by the pinned device baseline; the B217
+`oeminfo_nvm_server` and `teecd` executables are installed by the proprietary
+extraction step. None of them are duplicated here.
+
+The browser and WebView APKs are also deliberately excluded. Follow
+`device/huawei/mozart/prebuilt/cromite/README.md` to provide the pinned Cromite
+v138 pair before building.
+
+The B217 binary set is likewise not redistributed. Run
+`scripts/extract-proprietary-blobs.sh` with an extracted B217 `/system` tree;
+all 239 files are checked against `proprietary-files/mozart-b217.txt` before
+they are installed into the ignored local blob cache.
 
 ## Experimental DSS overlay
 

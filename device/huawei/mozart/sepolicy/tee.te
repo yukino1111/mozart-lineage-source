@@ -3,3 +3,4 @@
 allow tee rootfs:file { getattr open read execute map entrypoint };
 
 allow tee properties_device:dir r_dir_perms;
+set_prop(tee, mozart_trustedcore_prop)

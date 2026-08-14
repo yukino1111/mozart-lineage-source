@@ -1,0 +1,103 @@
+diff --git a/camera-vendor.mk b/camera-vendor.mk
+new file mode 100644
+index 0000000000000000000000000000000000000000..0ee54262d87541a6973a172d2b22ffed65e388af
+--- /dev/null
++++ b/camera-vendor.mk
+@@ -0,0 +1,33 @@
++#
++# Copyright (C) 2026 The LineageOS Project
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++
++MOZART_VENDOR_PATH := vendor/huawei/mozart/proprietary
++
++PRODUCT_COPY_FILES += \
++    $(MOZART_VENDOR_PATH)/isp/isp.bin:$(TARGET_COPY_OUT_SYSTEM)/isp/isp.bin \
++    $(MOZART_VENDOR_PATH)/system/lib/imedia_filters.so:$(TARGET_COPY_OUT_SYSTEM)/lib/imedia_filters.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libSmartAE.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libSmartAE.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libcamera_ae.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libcamera_ae.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libcamera_af.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libcamera_af.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libcamera_algo.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libcamera_algo.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libcamera_flash.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libcamera_flash.so \
++    $(MOZART_VENDOR_PATH)/vendor/bin/HwCamCfgSvr:$(TARGET_COPY_OUT_VENDOR)/bin/HwCamCfgSvr \
++    $(MOZART_VENDOR_PATH)/vendor/lib/hw/camera.hi3635.so:$(TARGET_COPY_OUT_VENDOR)/lib/hw/camera.hi3635.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libHWCamCfgSvr.so:$(TARGET_COPY_OUT_VENDOR)/lib/libHWCamCfgSvr.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libexif.so:$(TARGET_COPY_OUT_VENDOR)/lib/libexif_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libexpat_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libexpat_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libft2_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libft2_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libicui18n_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libicui18n_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libicuuc_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libicuuc_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libjpeg.so:$(TARGET_COPY_OUT_VENDOR)/lib/libjpeg_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libjpegenchw.so:$(TARGET_COPY_OUT_VENDOR)/lib/libjpegenchw.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libjpu.so:$(TARGET_COPY_OUT_VENDOR)/lib/libjpu.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libmemtrack.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmemtrack_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libpng_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libpng_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libskia.so:$(TARGET_COPY_OUT_VENDOR)/lib/libskia_mozart.so
++
++PRODUCT_COPY_FILES += $(call find-copy-subdir-files,*,$(MOZART_VENDOR_PATH)/etc/camera,$(TARGET_COPY_OUT_SYSTEM)/etc/camera)
++PRODUCT_COPY_FILES += $(call find-copy-subdir-files,*,$(MOZART_VENDOR_PATH)/system/lib/hwcam,$(TARGET_COPY_OUT_SYSTEM)/lib/hwcam)
+diff --git a/mozart-vendor.mk b/mozart-vendor.mk
+index b33df61eb8790ab2eb753fd8c3d2d5d0ee795da1..7703e544823044c3f2fb5055d4eeaa39e7f012b8 100644
+--- a/mozart-vendor.mk
++++ b/mozart-vendor.mk
+@@ -6,14 +6,34 @@
+ 
+ VENDOR_PATH := vendor/huawei/mozart/proprietary
+ 
++$(call inherit-product, vendor/huawei/mozart/camera-vendor.mk)
++
+ # Blobs
+ PRODUCT_COPY_FILES += \
+     $(VENDOR_PATH)/vendor/lib64/libbt-vendor.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libbt-vendor.so \
+     $(VENDOR_PATH)/vendor/lib64/hw/sensorcaps.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/hw/sensorcaps.hi3635.so \
+     $(VENDOR_PATH)/vendor/lib64/egl/libGLES_mali.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/egl/libGLES_mali.so \
++    $(VENDOR_PATH)/lib64/hw/copybit.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/hw/copybit.hi3635.so \
++    $(VENDOR_PATH)/lib64/hw/gralloc.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/hw/gralloc.hi3635.so \
++    $(VENDOR_PATH)/lib64/hw/memtrack.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/hw/memtrack.hi3635.so \
++    $(VENDOR_PATH)/lib64/libion.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libion.so \
++    $(VENDOR_PATH)/lib64/libomx_vxd.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libomx_vxd.so \
++    $(VENDOR_PATH)/lib64/libomx_vxe.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libomx_vxe.so \
++    $(VENDOR_PATH)/lib64/libstagefrighthw.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libstagefrighthw.so \
++    $(VENDOR_PATH)/lib64/libstlport.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libstlport.so \
++    $(VENDOR_PATH)/lib64/libvpp.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libvpp.so \
+     $(VENDOR_PATH)/vendor/lib64/sensorhub.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/sensorhub.hi3635.so \
+     $(VENDOR_PATH)/vendor/lib/hw/sensorcaps.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/hw/sensorcaps.hi3635.so \
+     $(VENDOR_PATH)/vendor/lib/egl/libGLES_mali.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/egl/libGLES_mali.so \
++    $(VENDOR_PATH)/lib/hw/copybit.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/hw/copybit.hi3635.so \
++    $(VENDOR_PATH)/lib/hw/gralloc.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/hw/gralloc.hi3635.so \
++    $(VENDOR_PATH)/lib/hw/memtrack.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/hw/memtrack.hi3635.so \
++    $(VENDOR_PATH)/lib/libion.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/libion.so \
++    $(VENDOR_PATH)/lib/libomx_vxd.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/libomx_vxd.so \
++    $(VENDOR_PATH)/lib/libomx_vxe.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/libomx_vxe.so \
++    $(VENDOR_PATH)/lib/libstagefrighthw.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/libstagefrighthw.so \
++    $(VENDOR_PATH)/lib/libstlport.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/libstlport.so \
++    $(VENDOR_PATH)/lib/libvpp.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib/libvpp.so \
+     $(VENDOR_PATH)/vendor/firmware/nvram4339_hw.txt:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/nvram4339_hw.txt \
+     $(VENDOR_PATH)/vendor/firmware/fw_bcm4339_hw.bin:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/fw_bcm4339_hw.bin \
+     $(VENDOR_PATH)/vendor/firmware/dhd_preinit_config.txt:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/dhd_preinit_config.txt \
+@@ -24,7 +44,7 @@ PRODUCT_COPY_FILES += \
+     $(VENDOR_PATH)/vendor/firmware/nvram4339_hw_mozart_l.txt:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/nvram4339_hw_mozart_l.txt \
+     $(VENDOR_PATH)/vendor/firmware/fw_bcm4339_apsta_hw.bin:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/fw_bcm4339_apsta_hw.bin \
+     $(VENDOR_PATH)/vendor/firmware/BCM4334B0_002.001.013.1837.2355.hcd:$(TARGET_COPY_OUT_SYSTEM)/vendor/firmware/BCM4334B0_002.001.013.1837.2355.hcd \
+-    $(VENDOR_PATH)/vendor/bin/mac_addr_normalization:$(TARGET_COPY_OUT_SYSTEM)/vendor/bin/mac_addr_normalization \
++    $(VENDOR_PATH)/vendor/bin/mac_addr_normalization:$(TARGET_COPY_OUT_SYSTEM)/vendor/bin/mac_addr_normalization_vendor \
+     $(VENDOR_PATH)/lib64/liboeminfo.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/liboeminfo.so \
+     $(VENDOR_PATH)/lib64/libtfa9895.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libtfa9895.so \
+     $(VENDOR_PATH)/lib64/lib_nve_operation.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/lib_nve_operation.so \
+@@ -33,6 +53,7 @@ PRODUCT_COPY_FILES += \
+     $(VENDOR_PATH)/lib64/libaudio_custom.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libaudio_custom.so \
+     $(VENDOR_PATH)/lib64/libaes.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/libaes.so \
+     $(VENDOR_PATH)/lib64/hw/flp.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/hw/flp.hi3635.so \
++    $(VENDOR_PATH)/lib64/hw/copybit.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/hw/copybit.hi3635.so \
+     $(VENDOR_PATH)/lib64/hw/memtrack.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/hw/memtrack.hi3635.so \
+     $(VENDOR_PATH)/lib64/hw/gralloc.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/hw/gralloc.hi3635.so \
+     $(VENDOR_PATH)/lib64/hw/audio.primary.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib64/hw/audio.primary.hi3635.so \
+@@ -57,6 +78,7 @@ PRODUCT_COPY_FILES += \
+     $(VENDOR_PATH)/lib/libbalong_audio_ril.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libbalong_audio_ril.so \
+     $(VENDOR_PATH)/lib/libaudio_custom.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libaudio_custom.so \
+     $(VENDOR_PATH)/lib/libaes.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libaes.so \
++    $(VENDOR_PATH)/lib/hw/copybit.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib/hw/copybit.hi3635.so \
+     $(VENDOR_PATH)/lib/hw/memtrack.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib/hw/memtrack.hi3635.so \
+     $(VENDOR_PATH)/lib/hw/gralloc.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib/hw/gralloc.hi3635.so \
+     $(VENDOR_PATH)/lib/hw/audio.primary.hi3635.so:$(TARGET_COPY_OUT_SYSTEM)/lib/hw/audio.primary.hi3635.so \

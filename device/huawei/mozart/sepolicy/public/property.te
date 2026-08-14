@@ -1,0 +1,2 @@
+type mozart_trustedcore_prop, property_type;
+type mozart_gpsd_ctl_prop, property_type;

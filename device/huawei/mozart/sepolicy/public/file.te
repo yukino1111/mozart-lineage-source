@@ -17,8 +17,12 @@ type mozart_oeminfo_socket, file_type;
 type mozart_tee_socket, file_type;
 
 # Kernel interfaces
+type mozart_gps_device, dev_type;
 type mozart_debugfs_ion, fs_type, debugfs_type;
 type mozart_proc_gpu_memory, fs_type, proc_type;
+type mozart_proc_touchscreen, fs_type, proc_type;
+type mozart_sysfs_gps, fs_type, sysfs_type;
+type mozart_sysfs_gps_config, fs_type, sysfs_type;
 type mozart_sysfs_audio_info, fs_type, sysfs_type;
 type mozart_sysfs_boardinfo, fs_type, sysfs_type;
 type mozart_sysfs_block2mtd, fs_type, sysfs_type;
@@ -29,3 +33,6 @@ type mozart_sysfs_ksm, fs_type, sysfs_type;
 type mozart_sysfs_mmc_queue, fs_type, sysfs_type;
 type mozart_sysfs_perfhub, fs_type, sysfs_type;
 type mozart_sysfs_sensors, fs_type, sysfs_type;
+type mozart_sysfs_sim, fs_type, sysfs_type;
+type mozart_sysfs_touchscreen, fs_type, sysfs_type;
+type mozart_sysfs_torch, fs_type, sysfs_type;
