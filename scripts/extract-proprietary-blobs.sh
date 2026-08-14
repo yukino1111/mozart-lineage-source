@@ -4,10 +4,11 @@ set -euo pipefail
 PATCH_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ANDROID_TOP="${1:-/android/lineage18.1-mozart}"
 SOURCE_ROOT="${2:-$PATCH_ROOT/proprietary-blobs/huawei/mozart}"
-LIST_FILE="$PATCH_ROOT/proprietary-files/mozart-emui31-graphics.txt"
+LIST_FILE="$PATCH_ROOT/proprietary-files/mozart-b217.txt"
 CACHE_ROOT="$PATCH_ROOT/proprietary-blobs/huawei/mozart"
 VENDOR_PROPRIETARY="$ANDROID_TOP/vendor/huawei/mozart/proprietary"
-STRICT_SHA1="${STRICT_SHA1:-0}"
+DEVICE_SOURCE_ROOT="${DEVICE_SOURCE_ROOT:-$SOURCE_ROOT}"
+STRICT_SHA1="${STRICT_SHA1:-1}"
 
 if [[ ! -d "$ANDROID_TOP/.repo" ]]; then
     echo "error: $ANDROID_TOP does not look like an Android repo checkout" >&2
@@ -58,15 +59,24 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
 
     rel="${line%%;*}"
     meta="${line#"$rel"}"
+    source_rel="$rel"
     expected_sha1=""
+
+    if [[ "$meta" =~ source=([^;]+) ]]; then
+        source_rel="${BASH_REMATCH[1]}"
+    fi
 
     if [[ "$meta" =~ sha1=([0-9a-fA-F]+) ]]; then
         expected_sha1="${BASH_REMATCH[1],,}"
     fi
 
-    if ! src="$(find_blob "$rel")"; then
-        echo "error: missing proprietary blob: $rel" >&2
-        exit 3
+    if ! src="$(find_blob "$source_rel")"; then
+        if [[ "$rel" == @device/* && -f "$DEVICE_SOURCE_ROOT/${rel#@device/}" ]]; then
+            src="$DEVICE_SOURCE_ROOT/${rel#@device/}"
+        else
+            echo "error: missing proprietary blob: $source_rel (for $rel)" >&2
+            exit 3
+        fi
     fi
 
     if [[ -n "$expected_sha1" ]]; then
@@ -81,8 +91,13 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
         fi
     fi
 
-    dst="$VENDOR_PROPRIETARY/$rel"
-    cache="$CACHE_ROOT/proprietary/$rel"
+    if [[ "$rel" == @device/* ]]; then
+        dst="$ANDROID_TOP/device/huawei/mozart/${rel#@device/}"
+        cache="$CACHE_ROOT/system/$source_rel"
+    else
+        dst="$VENDOR_PROPRIETARY/$rel"
+        cache="$CACHE_ROOT/proprietary/$rel"
+    fi
 
     install -D -m 0644 "$src" "$dst"
     if [[ "$src" != "$cache" ]]; then
@@ -94,4 +109,3 @@ while IFS= read -r raw_line || [[ -n "$raw_line" ]]; do
 done < "$LIST_FILE"
 
 echo "copied $copied proprietary blobs"
-"$PATCH_ROOT/scripts/prepare-proprietary-blobs.sh" "$ANDROID_TOP"

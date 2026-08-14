@@ -1,0 +1,468 @@
+diff --git a/camera/common/1.0/default/CameraModule.cpp b/camera/common/1.0/default/CameraModule.cpp
+index 16fb85cc6438ddce75f34355cf7c41ab5ea2b032..a9fa61b3f7a8813ad6a439db0459694d5591a96f 100644
+--- a/camera/common/1.0/default/CameraModule.cpp
++++ b/camera/common/1.0/default/CameraModule.cpp
+@@ -18,6 +18,11 @@
+ #define ATRACE_TAG ATRACE_TAG_CAMERA
+ //#define LOG_NDEBUG 0
+ 
++#include <errno.h>
++#include <fcntl.h>
++#include <string.h>
++#include <unistd.h>
++
+ #include <utils/Trace.h>
+ 
+ #include "CameraModule.h"
+@@ -29,6 +34,105 @@ namespace common {
+ namespace V1_0 {
+ namespace helper {
+ 
++static constexpr char kHuaweiCameraModuleName[] = "Huawei Camera Module";
++static constexpr char kHuaweiTorchBrightnessPath[] =
++        "/sys/class/leds/torch/brightness";
++
++static bool hasHuaweiLegacyTorch(const camera_module_t *module) {
++    return module->common.name != nullptr &&
++            strcmp(module->common.name, kHuaweiCameraModuleName) == 0 &&
++            access(kHuaweiTorchBrightnessPath, F_OK) == 0;
++}
++
++static void deriveHuaweiLegacyStreamConfigurations(
++        CameraMetadata &chars, Vector<int32_t> *derivedCharKeys) {
++    camera_metadata_entry streamConfigs =
++            chars.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
++    camera_metadata_entry formats = chars.find(ANDROID_SCALER_AVAILABLE_FORMATS);
++    camera_metadata_entry processedSizes =
++            chars.find(ANDROID_SCALER_AVAILABLE_PROCESSED_SIZES);
++    camera_metadata_entry jpegSizes = chars.find(ANDROID_SCALER_AVAILABLE_JPEG_SIZES);
++    camera_metadata_entry rawSizes = chars.find(ANDROID_SCALER_AVAILABLE_RAW_SIZES);
++    if (streamConfigs.count != 0 || formats.count == 0 || processedSizes.count == 0) {
++        return;
++    }
++
++    Vector<int32_t> configurations;
++    Vector<int64_t> minDurations;
++    Vector<int64_t> stallDurations;
++    constexpr int64_t kFrameDurationNs = 33333333LL;
++    constexpr int64_t kJpegStallNs = 100000000LL;
++    auto appendSizes = [&](int32_t format, const camera_metadata_entry &sizes) {
++        for (size_t i = 0; i + 1 < sizes.count; i += 2) {
++            const int32_t width = sizes.data.i32[i];
++            const int32_t height = sizes.data.i32[i + 1];
++            configurations.push(format); configurations.push(width);
++            configurations.push(height);
++            configurations.push(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT);
++            minDurations.push(format); minDurations.push(width);
++            minDurations.push(height); minDurations.push(kFrameDurationNs);
++            stallDurations.push(format); stallDurations.push(width);
++            stallDurations.push(height);
++            stallDurations.push(format == HAL_PIXEL_FORMAT_BLOB ? kJpegStallNs : 0);
++        }
++    };
++    for (size_t i = 0; i < formats.count; ++i) {
++        const int32_t format = formats.data.i32[i];
++        if (format == HAL_PIXEL_FORMAT_BLOB) {
++            appendSizes(format, jpegSizes);
++        } else if (format == HAL_PIXEL_FORMAT_RAW16 ||
++                format == HAL_PIXEL_FORMAT_RAW10 ||
++                format == HAL_PIXEL_FORMAT_RAW12 ||
++                format == HAL_PIXEL_FORMAT_RAW_OPAQUE) {
++            appendSizes(format, rawSizes);
++        } else {
++            appendSizes(format, processedSizes);
++        }
++    }
++    chars.update(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS, configurations);
++    chars.update(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS, minDurations);
++    chars.update(ANDROID_SCALER_AVAILABLE_STALL_DURATIONS, stallDurations);
++    derivedCharKeys->push(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
++    derivedCharKeys->push(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS);
++    derivedCharKeys->push(ANDROID_SCALER_AVAILABLE_STALL_DURATIONS);
++
++    auto expandArrayRect = [&](uint32_t tag) {
++        camera_metadata_entry entry = chars.find(tag);
++        if (entry.count == 2) {
++            int32_t rect[4] = {0, 0, entry.data.i32[0], entry.data.i32[1]};
++            chars.update(tag, rect, 4);
++            derivedCharKeys->push(tag);
++        }
++    };
++    expandArrayRect(ANDROID_SENSOR_INFO_ACTIVE_ARRAY_SIZE);
++    expandArrayRect(ANDROID_SENSOR_INFO_PRE_CORRECTION_ACTIVE_ARRAY_SIZE);
++
++    uint8_t byteValue = ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY;
++    chars.update(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL, &byteValue, 1);
++    derivedCharKeys->push(ANDROID_INFO_SUPPORTED_HARDWARE_LEVEL);
++    byteValue = ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE_UNKNOWN;
++    chars.update(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE, &byteValue, 1);
++    derivedCharKeys->push(ANDROID_SENSOR_INFO_TIMESTAMP_SOURCE);
++    byteValue = ANDROID_SCALER_CROPPING_TYPE_CENTER_ONLY;
++    chars.update(ANDROID_SCALER_CROPPING_TYPE, &byteValue, 1);
++    derivedCharKeys->push(ANDROID_SCALER_CROPPING_TYPE);
++    int32_t outputStreams[3] = {1, 3, 1};
++    chars.update(ANDROID_REQUEST_MAX_NUM_OUTPUT_STREAMS, outputStreams, 3);
++    derivedCharKeys->push(ANDROID_REQUEST_MAX_NUM_OUTPUT_STREAMS);
++    int32_t value = 0;
++    chars.update(ANDROID_REQUEST_MAX_NUM_INPUT_STREAMS, &value, 1);
++    derivedCharKeys->push(ANDROID_REQUEST_MAX_NUM_INPUT_STREAMS);
++    value = 1;
++    chars.update(ANDROID_REQUEST_PARTIAL_RESULT_COUNT, &value, 1);
++    derivedCharKeys->push(ANDROID_REQUEST_PARTIAL_RESULT_COUNT);
++    value = ANDROID_SYNC_MAX_LATENCY_UNKNOWN;
++    chars.update(ANDROID_SYNC_MAX_LATENCY, &value, 1);
++    derivedCharKeys->push(ANDROID_SYNC_MAX_LATENCY);
++    byteValue = 4;
++    chars.update(ANDROID_REQUEST_PIPELINE_MAX_DEPTH, &byteValue, 1);
++    derivedCharKeys->push(ANDROID_REQUEST_PIPELINE_MAX_DEPTH);
++}
++
+ void CameraModule::deriveCameraCharacteristicsKeys(
+         uint32_t deviceVersion, CameraMetadata &chars) {
+     ATRACE_CALL();
+@@ -36,6 +140,7 @@ void CameraModule::deriveCameraCharacteristicsKeys(
+     Vector<int32_t> derivedCharKeys;
+     Vector<int32_t> derivedRequestKeys;
+     Vector<int32_t> derivedResultKeys;
++    deriveHuaweiLegacyStreamConfigurations(chars, &derivedCharKeys);
+     // Keys added in HAL3.3
+     if (deviceVersion < CAMERA_DEVICE_API_VERSION_3_3) {
+         Vector<uint8_t> controlModes;
+@@ -306,6 +411,14 @@ int CameraModule::getCameraInfo(int cameraId, struct camera_info *info) {
+         }
+         CameraMetadata m;
+         m.append(rawInfo.static_camera_characteristics);
++        if (deviceVersion == CAMERA_DEVICE_API_VERSION_3_0 &&
++                !m.exists(ANDROID_REQUEST_AVAILABLE_CAPABILITIES)) {
++            // The B217 HAL predates this mandatory tag but implements the
++            // preview and still-capture paths required by legacy Camera API.
++            uint8_t capability =
++                    ANDROID_REQUEST_AVAILABLE_CAPABILITIES_BACKWARD_COMPATIBLE;
++            m.update(ANDROID_REQUEST_AVAILABLE_CAPABILITIES, &capability, 1);
++        }
+         deriveCameraCharacteristicsKeys(rawInfo.device_version, m);
+         cameraInfo = rawInfo;
+         cameraInfo.static_camera_characteristics = m.release();
+@@ -436,25 +549,49 @@ void CameraModule::getVendorTagOps(vendor_tag_ops_t* ops) {
+ }
+ 
+ bool CameraModule::isSetTorchModeSupported() const {
+-    if (getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4) {
+-        if (mModule->set_torch_mode == NULL) {
+-            ALOGE("%s: Module 2.4 device must support set torch API!",
+-                    __FUNCTION__);
+-            return false;
+-        }
++    if (mModule->set_torch_mode != NULL) {
++        return true;
++    }
++
++    if (hasHuaweiLegacyTorch(mModule)) {
+         return true;
+     }
++
++    if (getModuleApiVersion() >= CAMERA_MODULE_API_VERSION_2_4) {
++        ALOGE("%s: Module 2.4 device must support set torch API!",
++                __FUNCTION__);
++    }
+     return false;
+ }
+ 
+ int CameraModule::setTorchMode(const char* camera_id, bool enable) {
+-    int res = INVALID_OPERATION;
+     if (mModule->set_torch_mode != NULL) {
+         ATRACE_BEGIN("camera_module->set_torch_mode");
+-        res = mModule->set_torch_mode(camera_id, enable);
++        int res = mModule->set_torch_mode(camera_id, enable);
+         ATRACE_END();
++        return res;
+     }
+-    return res;
++
++    if (hasHuaweiLegacyTorch(mModule) && strcmp(camera_id, "0") == 0) {
++        ATRACE_BEGIN("huawei_legacy_set_torch_mode");
++        int fd = ::open(kHuaweiTorchBrightnessPath, O_WRONLY | O_CLOEXEC);
++        if (fd < 0) {
++            int error = -errno;
++            ALOGE("%s: Unable to open Huawei torch node: %s", __FUNCTION__,
++                    strerror(errno));
++            ATRACE_END();
++            return error;
++        }
++
++        const char value = enable ? '1' : '0';
++        ssize_t written = ::write(fd, &value, sizeof(value));
++        int error = written == 1 ? OK : (written < 0 ? -errno : -EIO);
++        close(fd);
++        ATRACE_END();
++        return error;
++    }
++
++    return INVALID_OPERATION;
+ }
+ 
+ int CameraModule::isStreamCombinationSupported(int cameraId, camera_stream_combination_t *streams) {
+diff --git a/camera/device/3.2/default/CameraDevice.cpp b/camera/device/3.2/default/CameraDevice.cpp
+index 4f85b58cf93c4baa2e0ae6b3c7701df4e7bd30e6..edc48711697edf0bcc97afce1bc3872193b89cc0 100644
+--- a/camera/device/3.2/default/CameraDevice.cpp
++++ b/camera/device/3.2/default/CameraDevice.cpp
+@@ -48,8 +48,9 @@ CameraDevice::CameraDevice(
+     }
+ 
+     mDeviceVersion = mModule->getDeviceVersion(mCameraIdInt);
+-    if (mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
+-        ALOGE("%s: Camera id %s does not support HAL3.2+",
++    if (mDeviceVersion != CAMERA_DEVICE_API_VERSION_3_0 &&
++            mDeviceVersion < CAMERA_DEVICE_API_VERSION_3_2) {
++        ALOGE("%s: Camera id %s does not support HAL3.0 or HAL3.2+",
+                 __FUNCTION__, mCameraId.c_str());
+         mInitFail = true;
+     }
+@@ -221,9 +222,10 @@ Return<void> CameraDevice::open(const sp<ICameraDeviceCallback>& callback,
+         }
+ 
+         /** Cross-check device version */
+-        if (device->common.version < CAMERA_DEVICE_API_VERSION_3_2) {
++        if (device->common.version != CAMERA_DEVICE_API_VERSION_3_0 &&
++                device->common.version < CAMERA_DEVICE_API_VERSION_3_2) {
+             ALOGE("%s: Could not open camera: "
+-                    "Camera device should be at least %x, reports %x instead",
++                    "Camera device should be HAL3.0 or at least %x, reports %x instead",
+                     __FUNCTION__,
+                     CAMERA_DEVICE_API_VERSION_3_2,
+                     device->common.version);
+diff --git a/camera/device/3.2/default/CameraDeviceSession.cpp b/camera/device/3.2/default/CameraDeviceSession.cpp
+index 99cdccbcdb055832b40f7c6d1c6647f4b02561f4..d91a463c56ea0941e779cfdc16e5cdde0cd5e217 100644
+--- a/camera/device/3.2/default/CameraDeviceSession.cpp
++++ b/camera/device/3.2/default/CameraDeviceSession.cpp
+@@ -371,6 +371,65 @@ Status CameraDeviceSession::importRequestImpl(
+     return Status::OK;
+ }
+ 
++Status CameraDeviceSession::registerLegacyBuffers(const CaptureRequest& request) {
++    if (mDeviceVersion > CAMERA_DEVICE_API_VERSION_3_1) {
++        return Status::OK;
++    }
++    if (mDevice->ops->register_stream_buffers == nullptr) {
++        ALOGE("%s: HAL version 0x%x has no register_stream_buffers operation",
++                __FUNCTION__, mDeviceVersion);
++        return Status::INTERNAL_ERROR;
++    }
++
++    Mutex::Autolock _l(mInflightLock);
++    std::set<int> requestStreamIds;
++    for (const auto& buffer : request.outputBuffers) {
++        requestStreamIds.insert(buffer.streamId);
++    }
++    if (request.inputBuffer.streamId != -1 && request.inputBuffer.bufferId != 0) {
++        requestStreamIds.insert(request.inputBuffer.streamId);
++    }
++
++    for (int streamId : requestStreamIds) {
++        if (mLegacyRegisteredStreams.count(streamId) != 0) {
++            continue;
++        }
++
++        auto streamIt = mStreamMap.find(streamId);
++        auto buffersIt = mCirculatingBuffers.find(streamId);
++        if (streamIt == mStreamMap.end() || buffersIt == mCirculatingBuffers.end() ||
++                buffersIt->second.empty()) {
++            ALOGE("%s: no configured stream or imported buffer for stream %d",
++                    __FUNCTION__, streamId);
++            return Status::INTERNAL_ERROR;
++        }
++
++        std::vector<buffer_handle_t*> buffers;
++        buffers.reserve(buffersIt->second.size());
++        for (auto& entry : buffersIt->second) {
++            buffers.push_back(&entry.second);
++        }
++
++        camera3_stream_buffer_set_t bufferSet = {
++                &streamIt->second,
++                static_cast<uint32_t>(buffers.size()),
++                buffers.data(),
++        };
++        status_t ret = mDevice->ops->register_stream_buffers(mDevice, &bufferSet);
++        if (ret != OK) {
++            ALOGE("%s: register_stream_buffers failed for stream %d: %s (%d)",
++                    __FUNCTION__, streamId, strerror(-ret), ret);
++            return Status::INTERNAL_ERROR;
++        }
++
++        mLegacyRegisteredStreams.insert(streamId);
++        ALOGI("%s: registered %zu initial buffer(s) for legacy HAL stream %d",
++                __FUNCTION__, buffers.size(), streamId);
++    }
++
++    return Status::OK;
++}
++
+ void CameraDeviceSession::cleanupInflightFences(
+         hidl_vec<int>& allFences, size_t numFences) {
+     for (size_t j = 0; j < numFences; j++) {
+@@ -1086,6 +1145,9 @@ Return<void> CameraDeviceSession::configureStreams(
+         status = Status::INTERNAL_ERROR;
+     } else {
+         convertToHidl(stream_list, &outStreams);
++        if (mDeviceVersion <= CAMERA_DEVICE_API_VERSION_3_1) {
++            mLegacyRegisteredStreams.clear();
++        }
+         mFirstRequest = true;
+     }
+ 
+@@ -1212,6 +1274,12 @@ Status CameraDeviceSession::processOneCaptureRequest(const CaptureRequest& reque
+         return status;
+     }
+ 
++    status = registerLegacyBuffers(request);
++    if (status != Status::OK) {
++        cleanupInflightFences(allFences, numBufs);
++        return status;
++    }
++
+     hidl_vec<camera3_stream_buffer_t> outHalBufs;
+     outHalBufs.resize(numOutputBufs);
+     bool aeCancelTriggerNeeded = false;
+@@ -1345,6 +1413,13 @@ uint64_t CameraDeviceSession::getCapResultBufferId(const buffer_handle_t&, int)
+ status_t CameraDeviceSession::constructCaptureResult(CaptureResult& result,
+                                                  const camera3_capture_result *hal_result) {
+     uint32_t frameNumber = hal_result->frame_number;
++    uint32_t partialResult = hal_result->partial_result;
++    if (mDeviceVersion <= CAMERA_DEVICE_API_VERSION_3_1 &&
++            hal_result->result != nullptr && partialResult == 0 && mNumPartialResults == 1) {
++        // HAL3.0 implementations commonly left this field at its zero-initialized
++        // value even when returning the one and only metadata result.
++        partialResult = 1;
++    }
+     bool hasInputBuf = (hal_result->input_buffer != nullptr);
+     size_t numOutputBufs = hal_result->num_output_buffers;
+     size_t numBufs = numOutputBufs + (hasInputBuf ? 1 : 0);
+@@ -1376,7 +1451,7 @@ status_t CameraDeviceSession::constructCaptureResult(CaptureResult& result,
+     // within the scope of this function
+     result.frameNumber = frameNumber;
+     result.fmqResultSize = 0;
+-    result.partialResult = hal_result->partial_result;
++    result.partialResult = partialResult;
+     convertToHidl(hal_result->result, &result.result);
+     if (nullptr != hal_result->result) {
+         bool resultOverriden = false;
+@@ -1395,7 +1470,7 @@ status_t CameraDeviceSession::constructCaptureResult(CaptureResult& result,
+                 }
+             }
+ 
+-            if ((hal_result->partial_result == mNumPartialResults)) {
++            if (partialResult == mNumPartialResults) {
+                 if (!mInflightRawBoostPresent[frameNumber]) {
+                     if (!resultOverriden) {
+                         mOverridenResult.clear();
+@@ -1421,7 +1496,7 @@ status_t CameraDeviceSession::constructCaptureResult(CaptureResult& result,
+             }
+             overrideResultForPrecaptureCancelLocked(entry->second,
+                     &mOverridenResult);
+-            if (hal_result->partial_result == mNumPartialResults) {
++            if (partialResult == mNumPartialResults) {
+                 mInflightAETriggerOverrides.erase(frameNumber);
+             }
+         }
+diff --git a/camera/device/3.2/default/CameraDeviceSession.h b/camera/device/3.2/default/CameraDeviceSession.h
+index a96c245067e221dc5e7e368ff2af84db4aa02a39..a2dee692932b519a753b7823002baa877dccd990 100644
+--- a/camera/device/3.2/default/CameraDeviceSession.h
++++ b/camera/device/3.2/default/CameraDeviceSession.h
+@@ -25,6 +25,7 @@
+ #include <include/convert.h>
+ #include <deque>
+ #include <map>
++#include <set>
+ #include <unordered_map>
+ #include "CameraMetadata.h"
+ #include "HandleImporter.h"
+@@ -115,6 +116,8 @@ protected:
+     // Helper methods
+     Status constructDefaultRequestSettingsRaw(int type, CameraMetadata *outMetadata);
+ 
++    Status registerLegacyBuffers(const CaptureRequest& request);
++
+     bool preProcessConfigurationLocked(const StreamConfiguration& requestedConfiguration,
+             camera3_stream_configuration_t *stream_list /*out*/,
+             hidl_vec<camera3_stream_t*> *streams /*out*/);
+@@ -171,6 +174,10 @@ protected:
+     // Stream ID -> circulating buffers map
+     std::map<int, CirculatingBuffers> mCirculatingBuffers;
+ 
++    // HAL3.0/3.1 requires register_stream_buffers() before a stream is used.
++    // HIDL normally wraps HAL3.2+, where that operation no longer exists.
++    std::set<int> mLegacyRegisteredStreams;
++
+     static HandleImporter sHandleImporter;
+     static buffer_handle_t sEmptyBuffer;
+ 
+diff --git a/camera/provider/2.4/default/LegacyCameraProviderImpl_2_4.cpp b/camera/provider/2.4/default/LegacyCameraProviderImpl_2_4.cpp
+index 4cff1b79a1f980aa65e941c0cdede7ac6b5f8b02..2786e6b698a39e1dda2ca4e7b4abf5f3519aac02 100644
+--- a/camera/provider/2.4/default/LegacyCameraProviderImpl_2_4.cpp
++++ b/camera/provider/2.4/default/LegacyCameraProviderImpl_2_4.cpp
+@@ -226,6 +226,7 @@ std::string LegacyCameraProviderImpl_2_4::getHidlDeviceName(
+         std::string cameraId, int deviceVersion) {
+     // Maybe consider create a version check method and SortedVec to speed up?
+     if (deviceVersion != CAMERA_DEVICE_API_VERSION_1_0 &&
++            deviceVersion != CAMERA_DEVICE_API_VERSION_3_0 &&
+             deviceVersion != CAMERA_DEVICE_API_VERSION_3_2 &&
+             deviceVersion != CAMERA_DEVICE_API_VERSION_3_3 &&
+             deviceVersion != CAMERA_DEVICE_API_VERSION_3_4 &&
+@@ -354,6 +355,9 @@ int LegacyCameraProviderImpl_2_4::checkCameraVersion(int id, camera_info info) {
+         // Verify the device version is in the supported range
+         switch (info.device_version) {
+             case CAMERA_DEVICE_API_VERSION_1_0:
++            // The B217 Mozart camera HAL implements HAL3 and reports 3.0.
++            // The HIDL wrapper can expose it through its configured 3.x API.
++            case CAMERA_DEVICE_API_VERSION_3_0:
+             case CAMERA_DEVICE_API_VERSION_3_2:
+             case CAMERA_DEVICE_API_VERSION_3_3:
+             case CAMERA_DEVICE_API_VERSION_3_4:
+@@ -376,7 +380,6 @@ int LegacyCameraProviderImpl_2_4::checkCameraVersion(int id, camera_info info) {
+                 break;
+             case CAMERA_DEVICE_API_VERSION_2_0:
+             case CAMERA_DEVICE_API_VERSION_2_1:
+-            case CAMERA_DEVICE_API_VERSION_3_0:
+             case CAMERA_DEVICE_API_VERSION_3_1:
+                 // no longer supported
+             default:
+diff --git a/camera/provider/2.4/default/android.hardware.camera.provider@2.4-service.rc b/camera/provider/2.4/default/android.hardware.camera.provider@2.4-service.rc
+index f7ac9f83e4b388112e2ad25f182eed5c52549ee2..c22e1c17f9689a96a3dc4e421c3f8438dc2896a9 100644
+--- a/camera/provider/2.4/default/android.hardware.camera.provider@2.4-service.rc
++++ b/camera/provider/2.4/default/android.hardware.camera.provider@2.4-service.rc
+@@ -1,6 +1,7 @@
+ service vendor.camera-provider-2-4 /vendor/bin/hw/android.hardware.camera.provider@2.4-service
+     interface android.hardware.camera.provider@2.4::ICameraProvider legacy/0
+     class hal
++    disabled
+     user cameraserver
+     group audio camera input drmrpc
+     ioprio rt 4
+diff --git a/camera/provider/2.4/default/service.cpp b/camera/provider/2.4/default/service.cpp
+index 4475f7d981211dee1d77c84ba98286b0d10a3f68..9a8769a4192d24e05b8be335f0055fd89a4cbbb8 100644
+--- a/camera/provider/2.4/default/service.cpp
++++ b/camera/provider/2.4/default/service.cpp
+@@ -20,6 +20,8 @@
+ #define LOG_TAG "android.hardware.camera.provider@2.4-service"
+ #endif
+ 
++#include <signal.h>
++
+ #include <android/hardware/camera/provider/2.4/ICameraProvider.h>
+ #include <binder/ProcessState.h>
+ #include <hidl/LegacySupport.h>
+@@ -38,9 +40,10 @@ const bool kLazyService = false;
+ int main()
+ {
+     ALOGI("CameraProvider@2.4 legacy service is starting.");
+-    // The camera HAL may communicate to other vendor components via
+-    // /dev/vndbinder
+-    android::ProcessState::initWithDriver("/dev/vndbinder");
++    signal(SIGPIPE, SIG_IGN);
++    // Huawei's B217 camera configuration service is an Android 6 platform
++    // Binder service. Keep the provider in the same Binder domain.
++    android::ProcessState::initWithDriver("/dev/binder");
+     status_t status;
+     if (kLazyService) {
+         status = defaultLazyPassthroughServiceImplementation<ICameraProvider>("legacy/0",

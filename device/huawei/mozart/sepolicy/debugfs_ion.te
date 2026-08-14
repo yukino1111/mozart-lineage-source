@@ -1,0 +1,11 @@
+# Legacy libion probes debugfs for optional allocation diagnostics. Keep the
+# information private while avoiding audit noise from the expected fallback.
+dontaudit appdomain mozart_debugfs_ion:dir search;
+dontaudit {
+    bootanim
+    cameraserver
+    mediaserver
+    mediaswcodec
+    surfaceflinger
+    system_server
+} mozart_debugfs_ion:dir search;

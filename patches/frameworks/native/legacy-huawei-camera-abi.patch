@@ -1,0 +1,125 @@
+diff --git a/libs/binder/Parcel.cpp b/libs/binder/Parcel.cpp
+index 5db162779e33b364f2f23b0e42c14267552819f7..e7ce27b8b294d3ed7975547e6e1a978f585c9cc2 100644
+--- a/libs/binder/Parcel.cpp
++++ b/libs/binder/Parcel.cpp
+@@ -75,8 +75,10 @@ static size_t pad_size(size_t s) {
+ 
+ namespace android {
+ 
+-// many things compile this into prebuilts on the stack
+-static_assert(sizeof(Parcel) == 60 || sizeof(Parcel) == 120);
++// Many things compile this into prebuilts on the stack.  Legacy 32-bit
++// Huawei camera blobs reserve 52 bytes, while the native 64-bit layout keeps
++// the Android 11 WorkSource bookkeeping fields.
++static_assert(sizeof(Parcel) == 52 || sizeof(Parcel) == 120);
+ 
+ static pthread_mutex_t gParcelGlobalAllocSizeLock = PTHREAD_MUTEX_INITIALIZER;
+ static size_t gParcelGlobalAllocSize = 0;
+@@ -519,12 +521,14 @@ bool Parcel::hasFileDescriptors() const
+ }
+ 
+ void Parcel::updateWorkSourceRequestHeaderPosition() const {
++#if defined(__LP64__)
+     // Only update the request headers once. We only want to point
+     // to the first headers read/written.
+     if (!mRequestHeaderPresent) {
+         mWorkSourceRequestHeaderPosition = dataPosition();
+         mRequestHeaderPresent = true;
+     }
++#endif
+ }
+ 
+ #if defined(__ANDROID_VNDK__) && !defined(__ANDROID_APEX__)
+@@ -548,12 +552,25 @@ status_t Parcel::writeInterfaceToken(const String16& interface)
+ 
+ bool Parcel::replaceCallingWorkSourceUid(uid_t uid)
+ {
++#if defined(__LP64__)
+     if (!mRequestHeaderPresent) {
+         return false;
+     }
++#else
++    if (dataSize() < 3 * sizeof(int32_t)) {
++        return false;
++    }
++#endif
+ 
+     const size_t initialPosition = dataPosition();
++#if defined(__LP64__)
+     setDataPosition(mWorkSourceRequestHeaderPosition);
++#else
++    // Binder request parcels start with StrictMode, WorkSource and the
++    // system/vendor header.  Avoid storing this fixed offset in Parcel so
++    // old 32-bit prebuilts retain their stack ABI.
++    setDataPosition(sizeof(int32_t));
++#endif
+     status_t err = writeInt32(uid);
+     setDataPosition(initialPosition);
+     return err == NO_ERROR;
+@@ -561,12 +578,22 @@ bool Parcel::replaceCallingWorkSourceUid(uid_t uid)
+ 
+ uid_t Parcel::readCallingWorkSourceUid() const
+ {
++#if defined(__LP64__)
+     if (!mRequestHeaderPresent) {
+         return IPCThreadState::kUnsetWorkSource;
+     }
++#else
++    if (dataSize() < 3 * sizeof(int32_t)) {
++        return IPCThreadState::kUnsetWorkSource;
++    }
++#endif
+ 
+     const size_t initialPosition = dataPosition();
++#if defined(__LP64__)
+     setDataPosition(mWorkSourceRequestHeaderPosition);
++#else
++    setDataPosition(sizeof(int32_t));
++#endif
+     uid_t uid = readInt32();
+     setDataPosition(initialPosition);
+     return uid;
+@@ -2743,8 +2770,10 @@ void Parcel::initState()
+     mAllowFds = true;
+     mOwner = nullptr;
+     mOpenAshmemSize = 0;
++#if defined(__LP64__)
+     mWorkSourceRequestHeaderPosition = 0;
+     mRequestHeaderPresent = false;
++#endif
+ 
+     // racing multiple init leads only to multiple identical write
+     if (gMaxFds == 0) {
+diff --git a/libs/binder/include/binder/Parcel.h b/libs/binder/include/binder/Parcel.h
+index 4b1179f38cc7f30bdd1a87076cb39399939ffb38..1f373c42cb6255cc8e581bfc5348d654c45a4f27 100644
+--- a/libs/binder/include/binder/Parcel.h
++++ b/libs/binder/include/binder/Parcel.h
+@@ -527,8 +527,13 @@ private:
+     mutable size_t      mNextObjectHint;
+     mutable bool        mObjectsSorted;
+ 
++#if defined(__LP64__)
++    // Keep the Android 11 bookkeeping in 64-bit processes.  On 32-bit,
++    // deriving the fixed Binder request-header position keeps Parcel at its
++    // legacy 52-byte ABI size for prebuilt vendor libraries.
+     mutable bool        mRequestHeaderPresent;
+     mutable size_t      mWorkSourceRequestHeaderPosition;
++#endif
+ 
+     mutable bool        mFdsKnown;
+     mutable bool        mHasFds;
+diff --git a/libs/ui/Gralloc2.cpp b/libs/ui/Gralloc2.cpp
+index 224caf721651552b757571111813db656e0c9228..6aa00b0825d4aedb792f9443988a24062c918d97 100644
+--- a/libs/ui/Gralloc2.cpp
++++ b/libs/ui/Gralloc2.cpp
+@@ -49,6 +49,10 @@ uint64_t getValid10UsageBits() {
+             bits = bits | bit;
+         }
+ 
++        // Huawei's B217 camera stack passes its legacy private allocation
++        // flags through GraphicBuffer. The Mozart gralloc0 HAL consumes them.
++        bits = bits | UINT64_C(0x06000000);
++
+ #ifdef ADDNL_GRALLOC_10_USAGE_BITS
+         uint64_t addnl_bits = static_cast<uint64_t>(ADDNL_GRALLOC_10_USAGE_BITS);
+         ALOGI("Adding additional valid usage bits: 0x%" PRIx64, addnl_bits);

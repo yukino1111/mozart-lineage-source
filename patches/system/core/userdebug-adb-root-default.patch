@@ -1,0 +1,14 @@
+diff --git a/adb/root/adbroot_service.cpp b/adb/root/adbroot_service.cpp
+index 0cd98255fda4b3a25300c6ded97fd3e8612c8861..9ed16efbaeb234277d7d239913e6acf29d7cc334 100644
+--- a/adb/root/adbroot_service.cpp
++++ b/adb/root/adbroot_service.cpp
+@@ -43,7 +43,8 @@ using ::android::base::SetProperty;
+ using ::android::base::Trim;
+ using ::android::base::WriteStringToFile;
+ 
+-ADBRootService::ADBRootService() : enabled_(false) {
++ADBRootService::ADBRootService()
++    : enabled_(::android::base::GetBoolProperty("ro.debuggable", false)) {
+     std::string buf;
+     if (ReadFileToString(kStoragePath + kEnabled, &buf)) {
+         enabled_ = std::stoi(Trim(buf));

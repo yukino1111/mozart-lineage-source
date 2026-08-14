@@ -1,0 +1,50 @@
+diff --git a/camera-vendor.mk b/camera-vendor.mk
+new file mode 100644
+index 0000000000000000000000000000000000000000..21c60189127b04c0ff45a6a53a4e624adbc40082
+--- /dev/null
++++ b/camera-vendor.mk
+@@ -0,0 +1,31 @@
++#
++# Copyright (C) 2026 The LineageOS Project
++#
++# SPDX-License-Identifier: Apache-2.0
++#
++
++MOZART_VENDOR_PATH := vendor/huawei/mozart/proprietary
++
++PRODUCT_COPY_FILES += \
++    $(MOZART_VENDOR_PATH)/isp/isp.bin:$(TARGET_COPY_OUT_SYSTEM)/isp/isp.bin \
++    $(MOZART_VENDOR_PATH)/system/lib/libcamera_ae.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libcamera_ae.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libcamera_af.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libcamera_af.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libcamera_algo.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libcamera_algo.so \
++    $(MOZART_VENDOR_PATH)/system/lib/libSmartAE.so:$(TARGET_COPY_OUT_SYSTEM)/lib/libSmartAE.so \
++    $(MOZART_VENDOR_PATH)/vendor/bin/HwCamCfgSvr:$(TARGET_COPY_OUT_VENDOR)/bin/HwCamCfgSvr \
++    $(MOZART_VENDOR_PATH)/vendor/lib/hw/camera.hi3635.so:$(TARGET_COPY_OUT_VENDOR)/lib/hw/camera.hi3635.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libHWCamCfgSvr.so:$(TARGET_COPY_OUT_VENDOR)/lib/libHWCamCfgSvr.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libexif.so:$(TARGET_COPY_OUT_VENDOR)/lib/libexif_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libexpat_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libexpat_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libft2_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libft2_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libicui18n_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libicui18n_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libicuuc_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libicuuc_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libjpeg.so:$(TARGET_COPY_OUT_VENDOR)/lib/libjpeg_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libjpegenchw.so:$(TARGET_COPY_OUT_VENDOR)/lib/libjpegenchw.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libjpu.so:$(TARGET_COPY_OUT_VENDOR)/lib/libjpu.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libmemtrack.so:$(TARGET_COPY_OUT_VENDOR)/lib/libmemtrack_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libpng_mozart.so:$(TARGET_COPY_OUT_VENDOR)/lib/libpng_mozart.so \
++    $(MOZART_VENDOR_PATH)/vendor/lib/libskia.so:$(TARGET_COPY_OUT_VENDOR)/lib/libskia_mozart.so
++
++PRODUCT_COPY_FILES += $(call find-copy-subdir-files,*,$(MOZART_VENDOR_PATH)/etc/camera,$(TARGET_COPY_OUT_SYSTEM)/etc/camera)
++PRODUCT_COPY_FILES += $(call find-copy-subdir-files,*,$(MOZART_VENDOR_PATH)/system/lib/hwcam,$(TARGET_COPY_OUT_SYSTEM)/lib/hwcam)
+diff --git a/mozart-vendor.mk b/mozart-vendor.mk
+index f4de3278207d18f3b4393ddd1d6d9a67c05f28bd..6e47998811aab2a41cde9e8a2a6b496d0f45a262 100644
+--- a/mozart-vendor.mk
++++ b/mozart-vendor.mk
+@@ -6,6 +6,8 @@
+ 
+ VENDOR_PATH := vendor/huawei/mozart/proprietary
+ 
++$(call inherit-product, vendor/huawei/mozart/camera-vendor.mk)
++
+ # Blobs
+ PRODUCT_COPY_FILES += \
+     $(VENDOR_PATH)/vendor/lib64/libbt-vendor.so:$(TARGET_COPY_OUT_SYSTEM)/vendor/lib64/libbt-vendor.so \

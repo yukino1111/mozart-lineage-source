@@ -31,8 +31,10 @@ for elf_file in "$@"; do
 
         if [ "${old_count}" -eq 0 ]; then
             if [ "${new_count}" -eq 0 ]; then
-                echo "neither symbol exists in ${elf_file}: ${old_symbol}" >&2
-                exit 1
+                # A map may cover more than one stock ICU generation. This
+                # pair simply does not apply to the current blob; the final
+                # undefined-symbol scan below still rejects any legacy suffix.
+                continue
             fi
             continue
         fi
@@ -51,7 +53,7 @@ for elf_file in "$@"; do
         exit 1
     fi
 
-    if readelf -Ws "${elf_file}" 2>/dev/null | awk '$7 == "UND" { print $8 }' | grep -q '_60$'; then
+    if readelf -Ws "${elf_file}" 2>/dev/null | awk '$7 == "UND" { print $8 }' | grep -Eq '_(55|60)$'; then
         echo "legacy ICU symbols remain unresolved in ${elf_file}" >&2
         exit 1
     fi

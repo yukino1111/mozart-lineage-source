@@ -13,6 +13,12 @@ without the proprietary `hw_healthd`, `oeminfo_nvm_server`, and `teecd`
 executables; the original author names and commit messages were retained before
 the maintained LineageOS 18.1 changes.
 
+The final device uses the B217 `oeminfo_nvm_server` and `teecd` inputs selected
+by the public SHA-1 manifest. These executables, the Huawei camera stack and
+the other proprietary firmware inputs are never stored in this repository;
+only their paths, digests and deterministic compatibility transformations are
+published.
+
 The vendor and kernel baselines are pinned in `local_manifests/mozart.xml` and
 remain separate upstream repositories. Only their required differences are
 stored here.

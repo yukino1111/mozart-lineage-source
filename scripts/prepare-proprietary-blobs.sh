@@ -89,4 +89,67 @@ for libdir in lib lib64; do
     validate_load_segments "$mali"
 done
 
-echo "prepared legacy mozart gralloc, Mali and private libion blobs"
+camera_config_server="$VENDOR_PROPRIETARY/vendor/bin/HwCamCfgSvr"
+gps_daemon="$VENDOR_PROPRIETARY/bin/glgps4752"
+camera_algo="$VENDOR_PROPRIETARY/system/lib/libcamera_algo.so"
+
+for required in "$camera_config_server" "$gps_daemon" "$camera_algo"; do
+    if [[ ! -f "$required" ]]; then
+        echo "error: missing proprietary blob: $required" >&2
+        exit 4
+    fi
+done
+
+# Android 11 moved ProcessCallStack out of libutils. libshim_gui retains the
+# diagnostic-only Marshmallow symbols used by Huawei's camera config server.
+add_needed "$camera_config_server" libshim_gui.so
+
+# Huawei's camera algorithm allocates a GraphicBuffer with the Android 6
+# 136-byte object size. Android 11's 32-bit object is 152 bytes; enlarge the
+# single allocation immediate before the compatibility constructor runs.
+# Keep a full instruction context so an unrelated 0x88 immediate is never
+# modified, and accept an already-prepared blob for idempotence.
+perl -0777 -pi -e '
+    BEGIN {
+        $old = pack("H*", "4ff4807400e001248820f2f780ed");
+        $new = pack("H*", "4ff4807400e001249820f2f780ed");
+    }
+    $old_count = () = /\Q$old\E/g;
+    $new_count = () = /\Q$new\E/g;
+    die "unexpected GraphicBuffer allocation signature\n"
+        unless ($old_count == 1 && $new_count == 0) ||
+               ($old_count == 0 && $new_count == 1);
+    s/\Q$old\E/$new/ if $old_count == 1;
+' "$camera_algo"
+
+add_needed "$camera_algo" libshim_camera_legacy.so
+add_needed "$camera_algo" libshim_gui.so
+
+# BoringSSL removed the SSLv3-specific entry point. TLS_method has equivalent
+# negotiation semantics for this client and its shorter name can safely reuse
+# the existing dynamic string slot without changing ELF segment layout.
+if readelf -Ws "$gps_daemon" | grep -F 'UND SSLv3_client_method' >/dev/null; then
+    perl -0pi -e \
+        's/SSLv3_client_method/TLS_method\x00\x00\x00\x00\x00\x00\x00\x00\x00/g' \
+        "$gps_daemon"
+fi
+if ! readelf -Ws "$gps_daemon" | grep -F 'UND TLS_method' >/dev/null; then
+    echo "error: failed to prepare TLS compatibility symbol in $gps_daemon" >&2
+    exit 4
+fi
+
+validate_load_segments "$camera_config_server"
+validate_load_segments "$gps_daemon"
+validate_load_segments "$camera_algo"
+
+audio_symbol_patcher="$ANDROID_TOP/device/huawei/mozart/tools/patch_legacy_icu_symbols.sh"
+if [[ ! -x "$audio_symbol_patcher" ]]; then
+    echo "error: missing audio compatibility tool: $audio_symbol_patcher" >&2
+    exit 4
+fi
+"$audio_symbol_patcher" \
+    "$VENDOR_PROPRIETARY/lib/hw/audio.primary.hi3635.so" \
+    "$VENDOR_PROPRIETARY/lib64/hw/audio.primary.hi3635.so" \
+    "$VENDOR_PROPRIETARY/lib/libhuaweiprocessing.so"
+
+echo "prepared legacy mozart graphics, camera, GNSS and private libion blobs"

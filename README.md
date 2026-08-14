@@ -15,8 +15,8 @@ platform with patches and reproducible preparation scripts.
 - `local_manifests/mozart.xml` pins the device, vendor and kernel baselines to
   exact commits;
 - `scripts/install-device-tree.sh` installs the maintained device source over
-  the pinned device baseline while preserving three unchanged Huawei rootfs
-  prebuilts that are intentionally not committed here.
+  the pinned device baseline while preserving Huawei rootfs prebuilts and
+  locally supplied Cromite APKs that are intentionally not committed here.
 
 ## Checkout
 
@@ -25,9 +25,11 @@ Initialize a normal LineageOS 18.1 source tree, copy
 manifest uses exact kirin930-dev commits so the three external device-specific
 repositories cannot silently change underneath this branch.
 
-Apply this branch's patches with:
+First extract the strictly hashed B217 proprietary inputs from an official
+`/system` extraction, then apply this branch's patches:
 
 ```sh
+scripts/extract-proprietary-blobs.sh /android/lineage18.1-mozart /path/to/stock-system
 scripts/apply-local-patches.sh /android/lineage18.1-mozart
 ```
 
@@ -35,6 +37,12 @@ The script installs this repository's complete device tree and then applies
 idempotent patches relative to the clean Git revisions selected by the
 manifest. Do not run the pinned device baseline's old `patches/install.sh`;
 its Android 9 patches only apply partially to the Android 11 platform.
+
+The image also expects the matching Cromite browser and System WebView APKs
+documented in
+`device/huawei/mozart/prebuilt/cromite/README.md`. They remain presigned and
+outside this repository; the local preparation entry verifies their digests
+and extracts the browser JNI libraries without rewriting either APK.
 
 ## Acknowledgements
 

@@ -88,6 +88,12 @@ BOARD_KERNEL_CMDLINE := \
     mmcparts=mmcblk0:p1(vrl),p2(vrl_backup),p6(modemnvm_factory),p9(splash),p10(modemnvm_backup),p11(modemnvm_img),p12(modemnvm_system),p14(3rdmodemnvm),p15(3rdmodemnvmback),p17(modem_om),p20(modemnvm_update),p30(modem),p31(modem_dsp),p32(dfx),p33(3rdmodem) \
     ate_enable=true
 
+# Keep development builds permissive from the first init stage. Release user
+# builds intentionally omit this parameter and boot enforcing.
+ifneq ($(filter userdebug eng,$(TARGET_BUILD_VARIANT)),)
+BOARD_KERNEL_CMDLINE += androidboot.selinux=permissive
+endif
+
 BOARD_MKBOOTIMG_ARGS := \
     --kernel_offset 0x00680000 \
     --ramdisk_offset 0x07c00000 \

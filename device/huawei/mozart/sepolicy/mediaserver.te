@@ -1,0 +1,2 @@
+# StagefrightRecorder checks config.disable_cameraservice when camera recording starts.
+get_prop(mediaserver, exported_camera_prop)

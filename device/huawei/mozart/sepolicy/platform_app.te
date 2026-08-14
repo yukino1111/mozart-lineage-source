@@ -1,0 +1,2 @@
+# Camera2 checks config.disable_cameraservice before opening a camera.
+get_prop(platform_app, exported_camera_prop)

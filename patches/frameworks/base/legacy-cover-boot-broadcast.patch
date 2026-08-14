@@ -1,0 +1,14 @@
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index 28724e2ebe99d5b3e0353506c14aba92b744ff77..6642de819c137dfb9c9e8d3befebb07c5872bc30 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -5849,6 +5849,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     }
+ 
+     private void sendLidChangeBroadcast() {
++        if (!mSystemBooted) {
++            return;
++        }
+         final int lidState = mDefaultDisplayPolicy.getLidState();
+         Log.d(TAG, "Sending cover change broadcast, lidState=" + lidState);
+         Intent intent = new Intent(lineageos.content.Intent.ACTION_LID_STATE_CHANGED);

@@ -39,6 +39,10 @@ apply_once \
     "$PATCH_ROOT/patches/frameworks/av/legacy-audio-version-table.patch"
 
 apply_once \
+    "frameworks/av" \
+    "$PATCH_ROOT/patches/frameworks/av/legacy-mozart-camera-recording.patch"
+
+apply_once \
     "frameworks/base" \
     "$PATCH_ROOT/patches/frameworks/base/legacy-mali-egl-main-thread.patch"
 
@@ -47,12 +51,20 @@ apply_once \
     "$PATCH_ROOT/patches/frameworks/base/legacy-install-media-gnss-stability.patch"
 
 apply_once \
+    "frameworks/base" \
+    "$PATCH_ROOT/patches/frameworks/base/legacy-cover-boot-broadcast.patch"
+
+apply_once \
     "frameworks/native" \
     "$PATCH_ROOT/patches/frameworks/native/0001-frameworks-native-backport-Region-FatVector-revert.patch"
 
 apply_once \
     "frameworks/native" \
     "$PATCH_ROOT/patches/frameworks/native/0002-surfaceflinger-control-the-legacy-framebuffer-power-.patch"
+
+apply_once \
+    "frameworks/native" \
+    "$PATCH_ROOT/patches/frameworks/native/legacy-huawei-camera-abi.patch"
 
 apply_once \
     "hardware/broadcom/wlan" \
@@ -73,6 +85,10 @@ apply_once \
 apply_once \
     "hardware/interfaces" \
     "$PATCH_ROOT/patches/hardware/interfaces/legacy-private-sensor-types.patch"
+
+apply_once \
+    "hardware/interfaces" \
+    "$PATCH_ROOT/patches/hardware/interfaces/legacy-huawei-camera-hal1.patch"
 
 apply_once \
     "hardware/lineage/interfaces" \
@@ -103,8 +119,16 @@ apply_once \
     "$PATCH_ROOT/patches/kernel/huawei/mozart/legacy-fde-aes-compat.patch"
 
 apply_once \
+    "kernel/huawei/mozart" \
+    "$PATCH_ROOT/patches/kernel/huawei/mozart/0005-mozart-use-b217-r8p0-mali.patch"
+
+apply_once \
     "packages/apps/Bluetooth" \
     "$PATCH_ROOT/patches/packages/apps/Bluetooth/legacy-huawei-disable-scs.patch"
+
+apply_once \
+    "packages/apps/Camera2" \
+    "$PATCH_ROOT/patches/packages/apps/Camera2/legacy-mozart-camera-behavior.patch"
 
 apply_once \
     "packages/modules/NetworkStack" \
@@ -123,6 +147,10 @@ apply_once \
     "$PATCH_ROOT/patches/system/core/legacy-dm-uevent-compat.patch"
 
 apply_once \
+    "system/core" \
+    "$PATCH_ROOT/patches/system/core/userdebug-adb-root-default.patch"
+
+apply_once \
     "system/sepolicy" \
     "$PATCH_ROOT/patches/system/sepolicy/legacy-fde-data-mirror-policy.patch"
 
@@ -137,6 +165,10 @@ apply_once \
 apply_once \
     "vendor/huawei/mozart" \
     "$PATCH_ROOT/patches/vendor/huawei/mozart/lineage18-vendor-layout.patch"
+
+apply_once \
+    "vendor/huawei/mozart" \
+    "$PATCH_ROOT/patches/vendor/huawei/mozart/lineage18-camera-vendor.patch"
 
 apply_once \
     "vendor/lineage" \

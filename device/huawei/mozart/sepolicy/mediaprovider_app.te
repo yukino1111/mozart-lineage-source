@@ -1,0 +1,2 @@
+# MediaProvider follows the per-user primary-storage link under /mnt/pass_through.
+allow mediaprovider_app mnt_pass_through_file:lnk_file read;

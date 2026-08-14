@@ -29,7 +29,7 @@ fi
 
 check_prebuilt() {
     local name="$1"
-    local expected="$2"
+    shift
     local path="$TARGET_TREE/rootdir/sbin/$name"
     local actual
 
@@ -39,28 +39,40 @@ check_prebuilt() {
     fi
 
     actual="$(sha1sum "$path" | awk '{print $1}')"
+    local expected
+    for expected in "$@"; do
+        if [[ "$actual" == "$expected" ]]; then
+            return
+        fi
+    done
+
     if [[ "$actual" != "$expected" ]]; then
         echo "error: unexpected sha1 for rootdir/sbin/$name" >&2
-        echo "expected: $expected" >&2
+        echo "expected one of: $*" >&2
         echo "actual:   $actual" >&2
         exit 4
     fi
 }
 
-# These three unchanged Huawei executables come from the pinned upstream device
-# baseline. They are deliberately excluded from this public repository.
+# These Huawei executables are deliberately excluded from this public
+# repository. Accept the pinned baseline during initial installation and the
+# verified B217 replacements after proprietary extraction.
 check_prebuilt hw_healthd 6cad7ff3470a05df2bccef2489ba96d07286052d
-check_prebuilt oeminfo_nvm_server 5656ecd5fade408108a36a8e1d73dc88adebea75
-check_prebuilt teecd 9f7a96b1e658f67d08abe2b67ba710fbfe023c92
+check_prebuilt oeminfo_nvm_server \
+    5656ecd5fade408108a36a8e1d73dc88adebea75 \
+    c965644f12018a3b3e1f145d4d9eb1d0afea8a5d
+check_prebuilt teecd \
+    9f7a96b1e658f67d08abe2b67ba710fbfe023c92 \
+    8a4476dc7382eefe181f276e3ee5f99db01a195b
 
 # repo represents project metadata as a .git symlink, so exclude both
 # directories and symlinks. A trailing slash only protects directories.
 rsync -a --delete \
     --exclude='/.git' \
     --exclude='/patches/' \
-    --exclude='/rootdir/sbin/hw_healthd' \
-    --exclude='/rootdir/sbin/oeminfo_nvm_server' \
-    --exclude='/rootdir/sbin/teecd' \
+    --exclude='/rootdir/sbin/' \
+    --exclude='/prebuilt/cromite/*.apk' \
+    --exclude='/prebuilt/cromite/lib/' \
     "$SOURCE_TREE/" "$TARGET_TREE/"
 
 echo "installed maintained device source: device/huawei/mozart"

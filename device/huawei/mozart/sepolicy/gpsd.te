@@ -4,10 +4,23 @@ type gpsd_exec, exec_type, file_type, system_file_type;
 
 # Started by init
 init_daemon_domain(gpsd)
+net_domain(gpsd)
 
 allow domain gpsd_exec:file { getattr read };
 
 allow gpsd self:netlink_kobject_uevent_socket create_socket_perms_no_ioctl;
+allow gpsd self:capability net_admin;
+allow gpsd system_file:file lock;
+get_prop(gpsd, hwservicemanager_prop)
+hwbinder_use(gpsd)
 allow gpsd mozart_gps_data_file:dir rw_dir_perms;
 allow gpsd mozart_gps_data_file:file create_file_perms;
 allow gpsd mozart_gps_data_file:fifo_file create_file_perms;
+allow gpsd mozart_gps_device:chr_file rw_file_perms;
+allow gpsd mozart_sysfs_gps:dir search;
+allow gpsd mozart_sysfs_gps:file rw_file_perms;
+
+# The legacy GNSS service uses SystemSuspend wakelocks directly.
+allow gpsd system_suspend_hwservice:hwservice_manager find;
+binder_call(gpsd, system_suspend)
+binder_call(system_suspend, gpsd)

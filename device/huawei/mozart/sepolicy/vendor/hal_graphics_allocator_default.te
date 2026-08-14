@@ -1,0 +1,4 @@
+# The legacy allocator probes libion debugfs statistics and falls back when
+# they are not available. Do not expose debugfs contents to the HAL.
+dontaudit hal_graphics_allocator_default mozart_debugfs_ion:dir search;
+dontaudit mediacodec mozart_debugfs_ion:dir search;

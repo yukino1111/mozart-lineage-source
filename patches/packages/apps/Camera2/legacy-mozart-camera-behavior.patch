@@ -1,0 +1,401 @@
+diff --git a/AndroidManifest.xml b/AndroidManifest.xml
+index 54885ae04da0ab3ad94419b1e2dd0a3da5d102bf..832c69211b3aeb7e1c99f4e90c3fe3b960ef8db0 100644
+--- a/AndroidManifest.xml
++++ b/AndroidManifest.xml
+@@ -63,6 +63,7 @@
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.DEFAULT" />
++                <category android:name="android.intent.category.LAUNCHER" />
+             </intent-filter>
+ 
+             <meta-data
+@@ -80,18 +81,6 @@
+                     android:value="com.android.camera.CameraActivity" />
+         </activity>
+ 
+-        <activity-alias
+-            android:name="com.android.camera.CameraLauncher"
+-            android:label="@string/app_name"
+-            android:targetActivity="com.android.camera.CameraActivity">
+-            <intent-filter>
+-                <action android:name="android.intent.action.MAIN" />
+-
+-                <category android:name="android.intent.category.DEFAULT" />
+-                <category android:name="android.intent.category.LAUNCHER" />
+-            </intent-filter>
+-        </activity-alias>
+-
+         <activity
+             android:name="com.android.camera.CaptureActivity"
+             android:label="@string/app_name"
+@@ -157,6 +146,10 @@
+                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+             </intent-filter>
+         </receiver>
++
++        <service
++            android:name="com.android.camera.processing.ProcessingService"
++            android:exported="false" />
+     </application>
+ 
+ </manifest>
+diff --git a/src/com/android/camera/PhotoModule.java b/src/com/android/camera/PhotoModule.java
+index f29b08eda5db5bf3d06aa38cbc56a95ddc36442f..88760022b5b9e3f5bec65a928723a643778fa7b5 100644
+--- a/src/com/android/camera/PhotoModule.java
++++ b/src/com/android/camera/PhotoModule.java
+@@ -23,6 +23,8 @@ import android.content.Intent;
+ import android.graphics.Bitmap;
+ import android.graphics.BitmapFactory;
+ import android.graphics.SurfaceTexture;
++import android.hardware.camera2.CameraAccessException;
++import android.hardware.camera2.CameraManager;
+ import android.location.Location;
+ import android.media.CameraProfile;
+ import android.net.Uri;
+@@ -34,6 +36,7 @@ import android.os.Looper;
+ import android.os.Message;
+ import android.os.MessageQueue;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.provider.MediaStore;
+ import android.view.KeyEvent;
+ import android.view.View;
+@@ -124,6 +127,7 @@ public class PhotoModule
+     private static final int UPDATE_PARAM_ALL = -1;
+ 
+     private static final String DEBUG_IMAGE_PREFIX = "DEBUG_";
++    private static final long MOZART_TORCH_WARMUP_MS = 250;
+ 
+     private CameraActivity mActivity;
+     private CameraProxy mCameraDevice;
+@@ -132,6 +136,7 @@ public class PhotoModule
+     private CameraSettings mCameraSettings;
+     private HardwareSpec mHardwareSpec;
+     private boolean mPaused;
++    private boolean mMozartTorchCaptureActive;
+ 
+     private PhotoUI mUI;
+ 
+@@ -866,6 +871,7 @@ public class PhotoModule
+         public void onPictureTaken(final byte[] originalJpegData, final CameraProxy camera) {
+             Log.i(TAG, "onPictureTaken");
+             mAppController.setShutterEnabled(true);
++            restoreMozartTorchCapture();
+             if (mPaused) {
+                 return;
+             }
+@@ -1413,9 +1419,86 @@ public class PhotoModule
+         }
+ 
+         mSnapshotOnIdle = false;
++
++        // B217's legacy HAL accepts the standard ALWAYS_FLASH request but does
++        // not run its proprietary pre-flash/main-flash sequence through the
++        // AOSP Camera1 shim. Use CameraService's provider torch path to
++        // illuminate the exposure when the user explicitly selects flash-on.
++        // Keep this property-gated and rear-camera-only so other devices and
++        // modes retain their normal behavior.
++        if (enableMozartTorchCapture()) {
++            mHandler.postDelayed(new Runnable() {
++                @Override
++                public void run() {
++                    if (mPaused || mCameraDevice == null) {
++                        restoreMozartTorchCapture();
++                        mAppController.setShutterEnabled(true);
++                        return;
++                    }
++                    focusAndCapture();
++                }
++            }, MOZART_TORCH_WARMUP_MS);
++            return;
++        }
++
+         mFocusManager.focusAndCapture(mCameraSettings.getCurrentFocusMode());
+     }
+ 
++    private boolean enableMozartTorchCapture() {
++        if (mMozartTorchCaptureActive || mCameraDevice == null || mCameraSettings == null
++                || isCameraFrontFacing()
++                || !SystemProperties.getBoolean("persist.camera.mozart_torch_capture", false)
++                || mCameraSettings.getCurrentFlashMode() != CameraCapabilities.FlashMode.ON) {
++            return false;
++        }
++
++        CameraManager cameraManager = AndroidServices.instance().provideCameraManager();
++        if (cameraManager == null) {
++            Log.e(TAG, "CameraManager unavailable for mozart torch-assisted capture");
++            return false;
++        }
++
++        // Avoid the legacy shim's broken ALWAYS_FLASH precapture wait while
++        // the independently controlled torch illuminates the frame.
++        mCameraSettings.setFlashMode(CameraCapabilities.FlashMode.OFF);
++        mCameraDevice.applySettings(mCameraSettings);
++        try {
++            cameraManager.setTorchMode(Integer.toString(mCameraId), true);
++        } catch (CameraAccessException | IllegalArgumentException e) {
++            mCameraSettings.setFlashMode(CameraCapabilities.FlashMode.ON);
++            mCameraDevice.applySettings(mCameraSettings);
++            Log.e(TAG, "Unable to enable provider torch for mozart still capture", e);
++            return false;
++        }
++
++        mMozartTorchCaptureActive = true;
++        Log.i(TAG, "Using provider torch for B217 still capture");
++        return true;
++    }
++
++    private void restoreMozartTorchCapture() {
++        if (!mMozartTorchCaptureActive) {
++            return;
++        }
++
++        mMozartTorchCaptureActive = false;
++        CameraManager cameraManager = AndroidServices.instance().provideCameraManager();
++        if (cameraManager != null) {
++            try {
++                cameraManager.setTorchMode(Integer.toString(mCameraId), false);
++            } catch (CameraAccessException | IllegalArgumentException e) {
++                Log.e(TAG, "Unable to disable provider torch after mozart still capture", e);
++            }
++        }
++        if (mCameraSettings != null) {
++            mCameraSettings.setFlashMode(CameraCapabilities.FlashMode.ON);
++            if (mCameraDevice != null) {
++                mCameraDevice.applySettings(mCameraSettings);
++            }
++        }
++        Log.i(TAG, "Disabled provider torch and restored flash-on after still capture");
++    }
++
+     @Override
+     public void onRemainingSecondsChanged(int remainingSeconds) {
+         if (remainingSeconds == 1) {
+@@ -1537,6 +1620,7 @@ public class PhotoModule
+     public void pause() {
+         Log.v(TAG, "pause");
+         mPaused = true;
++        restoreMozartTorchCapture();
+         getServices().getRemoteShutterListener().onModuleExit();
+         SessionStatsCollector.instance().sessionActive(false);
+ 
+diff --git a/src/com/android/camera/SetActivitiesCameraReceiver.java b/src/com/android/camera/SetActivitiesCameraReceiver.java
+index 7a79c52e653c7ba3357b0dbf434387d345d391e2..5c45af311ccf51e550e75246780f4510a87ca7a5 100644
+--- a/src/com/android/camera/SetActivitiesCameraReceiver.java
++++ b/src/com/android/camera/SetActivitiesCameraReceiver.java
+@@ -31,7 +31,7 @@ public class SetActivitiesCameraReceiver extends BroadcastReceiver {
+     private static final Log.Tag TAG = new Log.Tag("SetActivitiesCameraReceiver");
+     private static final boolean CHECK_BACK_CAMERA_ONLY = false;
+     private static final String ACTIVITIES[] = {
+-        "com.android.camera.CameraLauncher",
++        "com.android.camera.CameraActivity",
+     };
+ 
+     @Override
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index e8222f6d34c67ca38b5ea5ef40ae55b932e290b8..e3384429587c90619e36b3e97f773ff2c594d4c9 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -28,6 +28,8 @@ import android.graphics.Bitmap;
+ import android.graphics.Point;
+ import android.graphics.SurfaceTexture;
+ import android.hardware.Camera;
++import android.hardware.camera2.CameraAccessException;
++import android.hardware.camera2.CameraManager;
+ import android.location.Location;
+ import android.media.AudioManager;
+ import android.media.CamcorderProfile;
+@@ -41,6 +43,7 @@ import android.os.Looper;
+ import android.os.Message;
+ import android.os.ParcelFileDescriptor;
+ import android.os.SystemClock;
++import android.os.SystemProperties;
+ import android.provider.MediaStore;
+ import android.provider.MediaStore.MediaColumns;
+ import android.provider.MediaStore.Video;
+@@ -145,6 +148,7 @@ public class VideoModule extends CameraModule
+ 
+     private boolean mSwitchingCamera;
+     private boolean mMediaRecorderRecording = false;
++    private boolean mMozartVideoTorchActive;
+     private long mRecordingStartTime;
+     private boolean mRecordingTimeCountsDown = false;
+     private long mOnResumeTime;
+@@ -387,12 +391,9 @@ public class VideoModule extends CameraModule
+         if (mPaused || mCameraDevice == null) {
+             return;
+         }
+-        if (mMediaRecorderRecording) {
+-            if (!mSnapshotInProgress) {
+-                takeASnapshot();
+-            }
+-            return;
+-        }
++        // Do not take a video snapshot while recording. The legacy hi3635 camera HAL
++        // never returns its JPEG callback and leaves recording unable to stop. Let the
++        // tap continue through the regular focus/metering path instead.
+         // Check if metering area or focus area is supported.
+         if (!mFocusAreaSupported && !mMeteringAreaSupported) {
+             return;
+@@ -1002,6 +1003,7 @@ public class VideoModule extends CameraModule
+ 
+     private void closeCamera() {
+         Log.i(TAG, "closeCamera");
++        setMozartVideoTorch(false);
+         if (mCameraDevice == null) {
+             Log.d(TAG, "already stopped.");
+             return;
+@@ -1713,7 +1715,20 @@ public class VideoModule extends CameraModule
+         Set<CameraCapabilities.FocusMode> supportedFocus = mCameraCapabilities
+                 .getSupportedFocusModes();
+         if (mMediaRecorderRecording) {
+-            if (mCameraCapabilities.supports(CameraCapabilities.FocusMode.CONTINUOUS_VIDEO)) {
++            // A tap creates an explicit focus region. Temporarily switch away from
++            // continuous-video so Camera.autoFocus() actually drives the lens toward
++            // that region. FocusOverlayManager clears the regions on timeout, which
++            // naturally restores continuous-video through the branch below.
++            if (mFocusAreaSupported && mFocusManager.getFocusAreas() != null) {
++                mFocusManager.overrideFocusMode(null);
++                mCameraSettings.setFocusMode(
++                        mFocusManager.getFocusMode(mCameraSettings.getCurrentFocusMode()));
++                mCameraSettings.setFocusAreas(mFocusManager.getFocusAreas());
++                if (mMeteringAreaSupported) {
++                    mCameraSettings.setMeteringAreas(mFocusManager.getMeteringAreas());
++                }
++            } else if (mCameraCapabilities.supports(
++                    CameraCapabilities.FocusMode.CONTINUOUS_VIDEO)) {
+                 mCameraSettings.setFocusMode(CameraCapabilities.FocusMode.CONTINUOUS_VIDEO);
+                 mFocusManager.overrideFocusMode(CameraCapabilities.FocusMode.CONTINUOUS_VIDEO);
+             } else {
+@@ -1918,9 +1933,36 @@ public class VideoModule extends CameraModule
+         if (mCameraDevice != null) {
+             mCameraDevice.applySettings(mCameraSettings);
+         }
++        boolean wantsTorch = enable && !isCameraFrontFacing()
++                && flashMode == CameraCapabilities.FlashMode.TORCH;
++        setMozartVideoTorch(wantsTorch);
+         mUI.updateOnScreenIndicators(mCameraSettings);
+     }
+ 
++    private void setMozartVideoTorch(boolean enabled) {
++        if (!SystemProperties.getBoolean("persist.camera.mozart_torch_capture", false)
++                || mMozartVideoTorchActive == enabled) {
++            return;
++        }
++
++        CameraManager cameraManager = AndroidServices.instance().provideCameraManager();
++        if (cameraManager == null) {
++            Log.e(TAG, "CameraManager unavailable for mozart video torch");
++            return;
++        }
++
++        try {
++            // Mozart's flash is attached to rear camera 0. Track the physical
++            // torch independently because mCameraId changes before closeCamera
++            // during a rear-to-front switch.
++            cameraManager.setTorchMode("0", enabled);
++            mMozartVideoTorchActive = enabled;
++            Log.i(TAG, "Mozart video torch " + (enabled ? "enabled" : "disabled"));
++        } catch (CameraAccessException | IllegalArgumentException e) {
++            Log.e(TAG, "Unable to set mozart video torch to " + enabled, e);
++        }
++    }
++
+     @Override
+     public void onPreviewVisibilityChanged(int visibility) {
+         if (mPreviewing) {
+diff --git a/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java b/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java
+index dc7f9003f76f34d6600bfd9167aa5e6d9fb09f30..839c09d9a838ea4ad2ccb9d704970c7128fb5a30 100644
+--- a/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java
++++ b/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java
+@@ -40,8 +40,8 @@ public class OneCameraFeatureConfigCreator {
+      */
+     public static OneCameraFeatureConfig createDefault(ContentResolver contentResolver,
+             MemoryManager memoryManager) {
+-        // Enable CaptureModule on all M devices.
+-        boolean useCaptureModule = true;
++        // B217 completes flash sequencing through its Camera1 parameters.
++        boolean useCaptureModule = false;
+         Log.i(TAG, "CaptureModule? " + useCaptureModule);
+ 
+         // HDR+ has multiple levels of support.
+diff --git a/src/com/android/camera/processing/ProcessingService.java b/src/com/android/camera/processing/ProcessingService.java
+index 1e4809563c5fd27ead5dcdef475576e1ea3fda9e..8dc734f2c26fb991930ba32a768ad76cd2f13ff8 100644
+--- a/src/com/android/camera/processing/ProcessingService.java
++++ b/src/com/android/camera/processing/ProcessingService.java
+@@ -17,6 +17,7 @@
+ package com.android.camera.processing;
+ 
+ import android.app.Notification;
++import android.app.NotificationChannel;
+ import android.app.NotificationManager;
+ import android.app.Service;
+ import android.content.BroadcastReceiver;
+@@ -24,6 +25,7 @@ import android.content.Context;
+ import android.content.Intent;
+ import android.content.IntentFilter;
+ import android.os.IBinder;
++import android.os.Build;
+ import android.os.PowerManager;
+ import android.os.PowerManager.WakeLock;
+ import android.os.Process;
+@@ -74,6 +76,7 @@ public class ProcessingService extends Service implements ProgressListener {
+     private static final Log.Tag TAG = new Log.Tag("ProcessingService");
+     private static final int THREAD_PRIORITY = Process.THREAD_PRIORITY_BACKGROUND;
+     private static final int CAMERA_NOTIFICATION_ID = 2;
++    private static final String CAMERA_NOTIFICATION_CHANNEL_ID = "camera_processing";
+     private Notification.Builder mNotificationBuilder;
+     private NotificationManager mNotificationManager;
+ 
+@@ -113,8 +116,18 @@ public class ProcessingService extends Service implements ProgressListener {
+         intentFilter.addAction(ACTION_PAUSE_PROCESSING_SERVICE);
+         intentFilter.addAction(ACTION_RESUME_PROCESSING_SERVICE);
+         LocalBroadcastManager.getInstance(this).registerReceiver(mServiceController, intentFilter);
+-        mNotificationBuilder = createInProgressNotificationBuilder();
+         mNotificationManager = AndroidServices.instance().provideNotificationManager();
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            NotificationChannel channel = new NotificationChannel(
++                    CAMERA_NOTIFICATION_CHANNEL_ID,
++                    getString(R.string.app_name),
++                    NotificationManager.IMPORTANCE_LOW);
++            channel.setSound(null, null);
++            channel.enableVibration(false);
++            channel.setShowBadge(false);
++            mNotificationManager.createNotificationChannel(channel);
++        }
++        mNotificationBuilder = createInProgressNotificationBuilder();
+     }
+ 
+     @Override
+@@ -259,8 +272,13 @@ public class ProcessingService extends Service implements ProgressListener {
+      * Creates a notification to indicate that a computation is in progress.
+      */
+     private Notification.Builder createInProgressNotificationBuilder() {
+-        return new Notification.Builder(this)
+-                .setSmallIcon(R.drawable.ic_notification)
++        Notification.Builder builder;
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            builder = new Notification.Builder(this, CAMERA_NOTIFICATION_CHANNEL_ID);
++        } else {
++            builder = new Notification.Builder(this);
++        }
++        return builder.setSmallIcon(R.drawable.ic_notification)
+                 .setWhen(System.currentTimeMillis())
+                 .setOngoing(true)
+                 .setContentTitle(this.getText(R.string.app_name));
+diff --git a/src_pd/com/android/camera/util/GservicesHelper.java b/src_pd/com/android/camera/util/GservicesHelper.java
+index 12ae56a5ef52810c52e130c5cbdb6e6cc0450cf8..024e02fb22b69290406062a830b0098f3ca9a131 100644
+--- a/src_pd/com/android/camera/util/GservicesHelper.java
++++ b/src_pd/com/android/camera/util/GservicesHelper.java
+@@ -54,8 +54,8 @@ public class GservicesHelper {
+     }
+ 
+     public static boolean useCamera2ApiThroughPortabilityLayer(ContentResolver contentResolver) {
+-        // Use the camera2 API by default. This only affects PhotoModule on L.
+-        return true;
++        // Match stock EMUI and keep PhotoModule on the legacy Camera API.
++        return false;
+     }
+ 
+     public static boolean isGcamEnabled(ContentResolver contentResolver) {

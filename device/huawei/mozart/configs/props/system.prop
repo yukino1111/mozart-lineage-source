@@ -4,6 +4,14 @@ ro.config.hw_dts=false
 # Bluetooth
 ro.bt.bdaddr_path=/data/misc/bluedroid/macbt
 
+# Camera
+ro.vendor.camera.wrapper.hal3TrebleMinorVersion=2
+# The B217 camera HAL exports linear NV21 recording buffers. Route camera H.264
+# through the legacy OMX software converter; Codec2 remains enabled elsewhere.
+persist.camera.force_software_encoder=1
+persist.camera.huawei_precapture=1
+persist.camera.mozart_torch_capture=1
+
 # CPU
 ro.hardware.alter=Hisilicon Kirin 930
 
@@ -39,9 +47,6 @@ ro.hwui.text_large_cache_height=1024
 debug.hwui.use_partial_updates=false
 debug.hwui.use_buffer_age=false
 debug.hwui.renderer=opengl
-ro.zygote.disable_gl_preload=true
-debug.hwui.disable_egl_preload=true
-ro.hwui.legacy_egl_main_thread_warmup=true
 debug.hwui.disable_draw_reorder=true
 debug.hwui.disable_draw_defer=true
 debug.hwui.skip_empty_damage=false

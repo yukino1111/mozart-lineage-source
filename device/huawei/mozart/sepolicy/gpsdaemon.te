@@ -13,5 +13,9 @@ allow gpsdaemon { toolbox_exec vendor_toolbox_exec }:file rx_file_perms;
 allow gpsdaemon mozart_sysfs_gps:dir search;
 allow gpsdaemon mozart_sysfs_gps:file r_file_perms;
 
+# The stock B217 setup script adjusts modes on setgid GPS data paths. Let
+# chmod preserve the group bit instead of generating a boot-time AVC.
+allow gpsdaemon self:capability fsetid;
+
 type mozart_ctl_gpsd_prop, property_type;
 set_prop(gpsdaemon, mozart_ctl_gpsd_prop)

@@ -2,6 +2,10 @@ on post-fs-data
     mkdir /data/gps 775 root system
     mkdir /data/gps/log 770
 
+    # gpsdaemon does not recreate this file after Format Data on Android 11.
+    # Seed the stock B217 receiver configuration before the HAL starts.
+    copy /system/etc/gps4752config.xml /data/gps/gpsconfig.xml
+
     mkdir /data/hwzd_logs 775 root system
     mkdir /data/hwzd_logs/gps_log 775
 

@@ -1,0 +1,337 @@
+diff --git a/media/libmediaplayerservice/StagefrightRecorder.cpp b/media/libmediaplayerservice/StagefrightRecorder.cpp
+index c66def491b9dde7e8bda049a990d69c68870eead..0fce0bea0a4279d4988a9fca18e70059ec77ea20 100644
+--- a/media/libmediaplayerservice/StagefrightRecorder.cpp
++++ b/media/libmediaplayerservice/StagefrightRecorder.cpp
+@@ -1864,9 +1864,29 @@ status_t StagefrightRecorder::setupVideoEncoder(
+     uint32_t flags = 0;
+     if (cameraSource == NULL) {
+         flags |= MediaCodecSource::FLAG_USE_SURFACE_INPUT;
++        // The legacy hi3635 TOPAZ encoder expects the Android 6 private
++        // gralloc stride layout for opaque surface buffers. Prefer the
++        // software encoder for screen recording while keeping CameraSource
++        // recording on the hardware encoder.
++        flags |= MediaCodecSource::FLAG_PREFER_SOFTWARE_CODEC;
+     } else {
+         // require dataspace setup even if not using surface input
+         format->setInt32("android._using-recorder", 1);
++
++        // The legacy hi3635 TOPAZ encoder and Codec2 compatibility path misinterpret the
++        // B217 camera HAL's linear NV21 buffer-queue input. Keep the B217 camera/ISP stack
++        // and use the old OMX software converter only for camera recording.
++        if (::android::base::GetBoolProperty(
++                "persist.camera.force_software_encoder", false)) {
++            flags |= MediaCodecSource::FLAG_PREFER_SOFTWARE_CODEC;
++            if (mVideoEncoder == VIDEO_ENCODER_H264) {
++                // The old OMX converter understands the B217 HAL's linear NV21 recording
++                // buffers. Keep this marker camera-only so the rest of the media stack can
++                // continue using Codec2.
++                format->setInt32("android._mozart-camera-legacy-omx", 1);
++            }
++            ALOGI("Preferring legacy OMX software video encoder for camera recording");
++        }
+     }
+ 
+     sp<MediaCodecSource> encoder = MediaCodecSource::Create(
+diff --git a/media/libstagefright/ACodec.cpp b/media/libstagefright/ACodec.cpp
+index 4a3b32f3eebf7bdaa57642f92aada6c6b813585f..d87f8c7f9eaf17ce5d8597d1cac240c3c2c6a23a 100644
+--- a/media/libstagefright/ACodec.cpp
++++ b/media/libstagefright/ACodec.cpp
+@@ -6826,7 +6826,10 @@ bool ACodec::UninitializedState::onAllocateComponent(const sp<AMessage> &msg) {
+         mCodec->signalError(OMX_ErrorUndefined, UNKNOWN_ERROR);
+         return false;
+     }
+-    AString owner = (info->getOwnerName() == nullptr) ? "default" : info->getOwnerName();
++    AString owner;
++    if (!msg->findString("owner", &owner)) {
++        owner = (info->getOwnerName() == nullptr) ? "default" : info->getOwnerName();
++    }
+ 
+     AString componentName;
+     CHECK(msg->findString("componentName", &componentName));
+diff --git a/media/libstagefright/CameraSource.cpp b/media/libstagefright/CameraSource.cpp
+index be3fde8a0c23d750f43b4b609cb277eb7eaa62b2..26c7ff21453fd0773096fb58499a4ce18e51ba61 100644
+--- a/media/libstagefright/CameraSource.cpp
++++ b/media/libstagefright/CameraSource.cpp
+@@ -585,6 +585,10 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
+     uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN;
+     if (format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+         usage = GRALLOC_USAGE_HW_VIDEO_ENCODER;
++    } else if (property_get_bool("persist.camera.force_software_encoder", false)) {
++        // Keep the recording use case visible to the legacy camera HAL while making the
++        // buffer CPU-readable by the software encoder's color converter.
++        usage |= GRALLOC_USAGE_HW_VIDEO_ENCODER;
+     }
+ 
+     bufferCount += kConsumerBufferCount;
+@@ -686,7 +690,17 @@ status_t CameraSource::initWithCameraAccess(
+     // By default, store real data in video buffers.
+     mVideoBufferMode = hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV;
+     if (storeMetaDataInVideoBuffers) {
+-        if (OK == mCamera->setVideoBufferMode(hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE)) {
++        // Some legacy camera/encoder combinations implement native-handle metadata correctly,
++        // but corrupt chroma when the camera1 compatibility layer feeds the encoder through an
++        // ANW buffer queue. Keep the default ordering for modern devices and offer a narrowly
++        // scoped, runtime-selectable fallback for legacy bring-up.
++        const bool forceLegacyMetadata =
++                property_get_bool("persist.camera.force_legacy_metadata_buffers", false);
++        if (forceLegacyMetadata && OK == mCamera->setVideoBufferMode(
++                hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA)) {
++            mVideoBufferMode = hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA;
++        } else if (OK == mCamera->setVideoBufferMode(
++                hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE)) {
+             mVideoBufferMode = hardware::ICamera::VIDEO_BUFFER_MODE_BUFFER_QUEUE;
+         } else if (OK == mCamera->setVideoBufferMode(
+                 hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_METADATA)) {
+@@ -694,6 +708,11 @@ status_t CameraSource::initWithCameraAccess(
+         }
+     }
+ 
++    ALOGI("Video buffer mode: %d (legacy metadata forced: %s), source color format: %#x",
++            mVideoBufferMode,
++            property_get_bool("persist.camera.force_legacy_metadata_buffers", false) ? "yes" : "no",
++            mColorFormat);
++
+     if (mVideoBufferMode == hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV) {
+         err = mCamera->setVideoBufferMode(hardware::ICamera::VIDEO_BUFFER_MODE_DATA_CALLBACK_YUV);
+         if (err != OK) {
+@@ -836,6 +855,14 @@ status_t CameraSource::start(MetaData *meta) {
+         }
+     }
+ 
++    if (property_get_bool("persist.camera.force_software_encoder", false)
++            && mEncoderFormat != HAL_PIXEL_FORMAT_YCrCb_420_SP) {
++        ALOGI("Overriding software encoder camera format %#x with legacy NV21 %#x",
++                mEncoderFormat, HAL_PIXEL_FORMAT_YCrCb_420_SP);
++        mEncoderFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
++        mEncoderDataSpace = HAL_DATASPACE_V0_BT709;
++    }
++
+     status_t err;
+     if ((err = startCameraRecording()) == OK) {
+         mStarted = true;
+diff --git a/media/libstagefright/MediaCodec.cpp b/media/libstagefright/MediaCodec.cpp
+index 8283187c8023e61f0f46a24c1a25cf525d21513e..6dfbdf2df5d4ff43efb191caf628fa6afc73d96e 100644
+--- a/media/libstagefright/MediaCodec.cpp
++++ b/media/libstagefright/MediaCodec.cpp
+@@ -626,6 +626,19 @@ sp<MediaCodec> MediaCodec::CreateByComponentName(
+     return ret == OK ? codec : NULL; // NULL deallocates codec.
+ }
+ 
++// static
++sp<MediaCodec> MediaCodec::CreateByComponentNameForLegacyOmx(
++        const sp<ALooper> &looper, const AString &name, status_t *err, pid_t pid, uid_t uid) {
++    sp<MediaCodec> codec = new MediaCodec(looper, pid, uid);
++    codec->mForceLegacyOmx = true;
++
++    const status_t ret = codec->init(name);
++    if (err != NULL) {
++        *err = ret;
++    }
++    return ret == OK ? codec : NULL;
++}
++
+ // static
+ sp<PersistentSurface> MediaCodec::CreatePersistentInputSurface() {
+     sp<PersistentSurface> pluginSurface = CCodec::CreateInputSurface();
+@@ -664,6 +677,7 @@ MediaCodec::MediaCodec(
+       mCodec(NULL),
+       mReplyID(0),
+       mFlags(0),
++      mForceLegacyOmx(false),
+       mStickyError(OK),
+       mSoftRenderer(NULL),
+       mIsVideo(false),
+@@ -1203,6 +1217,10 @@ status_t MediaCodec::init(const AString &name) {
+         owner = mCodecInfo->getOwnerName();
+     }
+ 
++    if (mForceLegacyOmx) {
++        owner = "default";
++    }
++
+     mCodec = mGetCodecBase(name, owner);
+     if (mCodec == NULL) {
+         ALOGE("Getting codec base with name '%s' (owner='%s') failed", name.c_str(), owner);
+@@ -2405,7 +2423,8 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
+                                                 mComponentName.c_str());
+                     }
+ 
+-                    const char *owner = mCodecInfo ? mCodecInfo->getOwnerName() : "";
++                    const char *owner = mForceLegacyOmx
++                            ? "default" : (mCodecInfo ? mCodecInfo->getOwnerName() : "");
+                     if (mComponentName.startsWith("OMX.google.")
+                             && strncmp(owner, "default", 8) == 0) {
+                         mFlags |= kFlagUsesSoftwareRenderer;
+@@ -2823,6 +2842,9 @@ void MediaCodec::onMessageReceived(const sp<AMessage> &msg) {
+                 format->setObject("codecInfo", codecInfo);
+             }
+             format->setString("componentName", name);
++            if (mForceLegacyOmx) {
++                format->setString("owner", "default");
++            }
+ 
+             mCodec->initiateAllocateComponent(format);
+             break;
+diff --git a/media/libstagefright/MediaCodecSource.cpp b/media/libstagefright/MediaCodecSource.cpp
+index c6ae1596de482c9900ca1efe19444633ec1402c2..f785fb5e3c90a07e43d72c2e415e2e2fc1789453 100644
+--- a/media/libstagefright/MediaCodecSource.cpp
++++ b/media/libstagefright/MediaCodecSource.cpp
+@@ -491,8 +491,24 @@ status_t MediaCodecSource::initEncoder() {
+ 
+     AString name;
+     status_t err = NO_INIT;
+-    if (mOutputFormat->findString("testing-name", &name)) {
+-        mEncoder = MediaCodec::CreateByComponentName(mCodecLooper, name);
++    int32_t useLegacyOmx = 0;
++    const bool forceLegacyOmx = mIsVideo
++            && outputMIME.equalsIgnoreCase(MIMETYPE_VIDEO_AVC)
++            && mOutputFormat->findInt32("android._mozart-camera-legacy-omx", &useLegacyOmx)
++            && useLegacyOmx != 0;
++    if (forceLegacyOmx || mOutputFormat->findString("testing-name", &name)) {
++        if (forceLegacyOmx) {
++            name.setTo("OMX.google.h264.encoder");
++            ALOGI("Forcing legacy OMX AVC encoder for mozart camera input");
++            mEncoder = MediaCodec::CreateByComponentNameForLegacyOmx(mCodecLooper, name);
++        } else {
++            mEncoder = MediaCodec::CreateByComponentName(mCodecLooper, name);
++        }
++
++        if (mEncoder == NULL) {
++            ALOGE("Failed to create encoder component '%s'", name.c_str());
++            return NAME_NOT_FOUND;
++        }
+ 
+         mEncoderActivityNotify = new AMessage(kWhatEncoderActivity, mReflector);
+         mEncoder->setCallback(mEncoderActivityNotify);
+diff --git a/media/libstagefright/include/media/stagefright/MediaCodec.h b/media/libstagefright/include/media/stagefright/MediaCodec.h
+index 24f148e7171a3de20767d254c81328bcbe3ca18b..82b53221ed782fdb6085d45b0fb03f095511bb43 100644
+--- a/media/libstagefright/include/media/stagefright/MediaCodec.h
++++ b/media/libstagefright/include/media/stagefright/MediaCodec.h
+@@ -100,6 +100,12 @@ struct MediaCodec : public AHandler {
+             const sp<ALooper> &looper, const AString &name, status_t *err = NULL,
+             pid_t pid = kNoPid, uid_t uid = kNoUid);
+ 
++    // Instantiate an OMX component through ACodec even when Codec2 publishes a
++    // compatibility alias with the same component name.
++    static sp<MediaCodec> CreateByComponentNameForLegacyOmx(
++            const sp<ALooper> &looper, const AString &name, status_t *err = NULL,
++            pid_t pid = kNoPid, uid_t uid = kNoUid);
++
+     static sp<PersistentSurface> CreatePersistentInputSurface();
+ 
+     status_t configure(
+@@ -370,6 +376,7 @@ private:
+     std::string mLastReplyOrigin;
+     std::vector<sp<AMessage>> mDeferredMessages;
+     uint32_t mFlags;
++    bool mForceLegacyOmx;
+     status_t mStickyError;
+     sp<Surface> mSurface;
+     SoftwareRenderer *mSoftRenderer;
+diff --git a/services/camera/libcameraservice/CameraFlashlight.cpp b/services/camera/libcameraservice/CameraFlashlight.cpp
+index e629cdd7983cdfca517f66fc73122b1c0c54a2aa..7aaf239ebe2da7fc50a18c6fdbbd5f6cbc202b58 100644
+--- a/services/camera/libcameraservice/CameraFlashlight.cpp
++++ b/services/camera/libcameraservice/CameraFlashlight.cpp
+@@ -80,7 +80,9 @@ status_t CameraFlashlight::setTorchMode(const String8& cameraId, bool enabled) {
+     status_t res = OK;
+     Mutex::Autolock l(mLock);
+ 
+-    if (mOpenedCameraIds.indexOf(cameraId) != NAME_NOT_FOUND) {
++    const bool allowTorchWhileOpen = cameraId == String8("0") &&
++            property_get_bool("persist.camera.mozart_torch_capture", false);
++    if (mOpenedCameraIds.indexOf(cameraId) != NAME_NOT_FOUND && !allowTorchWhileOpen) {
+         // This case is needed to avoid state corruption during the following call sequence:
+         // CameraService::setTorchMode for camera ID 0 begins, does torch status checks
+         // CameraService::connect for camera ID 0 begins, calls prepareDeviceOpen, ends
+@@ -93,6 +95,10 @@ status_t CameraFlashlight::setTorchMode(const String8& cameraId, bool enabled) {
+                 __FUNCTION__, cameraId.string());
+         return -EBUSY;
+     }
++    if (mOpenedCameraIds.indexOf(cameraId) != NAME_NOT_FOUND) {
++        ALOGW("%s: Allowing property-gated torch control while mozart rear camera is open",
++                __FUNCTION__);
++    }
+ 
+     if (mFlashControl == NULL) {
+         res = createFlashlightControl(cameraId);
+diff --git a/services/camera/libcameraservice/CameraService.cpp b/services/camera/libcameraservice/CameraService.cpp
+index c08810f52aeb4eb5178cef0320726714efcf4438..36a818c876d3c570c29febe7069ddcae74013830 100644
+--- a/services/camera/libcameraservice/CameraService.cpp
++++ b/services/camera/libcameraservice/CameraService.cpp
+@@ -1890,6 +1890,8 @@ Status CameraService::setTorchMode(const String16& cameraId, bool enabled,
+ 
+     String8 id = String8(cameraId.string());
+     int uid = CameraThreadState::getCallingUid();
++    const bool allowTorchWhileOpen = id == String8("0") &&
++            property_get_bool("persist.camera.mozart_torch_capture", false);
+ 
+     if (shouldRejectSystemCameraConnection(id)) {
+         return STATUS_ERROR_FMT(ERROR_ILLEGAL_ARGUMENT, "Unable to set torch mode"
+@@ -1927,7 +1929,7 @@ Status CameraService::setTorchMode(const String16& cameraId, bool enabled,
+                     strerror(-err), err);
+         }
+ 
+-        if (status == TorchModeStatus::NOT_AVAILABLE) {
++        if (status == TorchModeStatus::NOT_AVAILABLE && !allowTorchWhileOpen) {
+             if (cameraStatus == StatusInternal::NOT_AVAILABLE) {
+                 ALOGE("%s: torch mode of camera %s is not available because "
+                         "camera is in use", __FUNCTION__, id.string());
+@@ -1942,6 +1944,10 @@ Status CameraService::setTorchMode(const String16& cameraId, bool enabled,
+                         id.string());
+             }
+         }
++        if (status == TorchModeStatus::NOT_AVAILABLE && allowTorchWhileOpen) {
++            ALOGW("%s: Bypassing torch availability check for property-gated mozart capture",
++                    __FUNCTION__);
++        }
+     }
+ 
+     {
+diff --git a/services/camera/libcameraservice/api1/client2/Parameters.cpp b/services/camera/libcameraservice/api1/client2/Parameters.cpp
+index dbc863b3adcbdd72d25b6a200480761de8324816..2d1a2f5b465137529fb6a8d1b65097a533c1a7bf 100644
+--- a/services/camera/libcameraservice/api1/client2/Parameters.cpp
++++ b/services/camera/libcameraservice/api1/client2/Parameters.cpp
+@@ -37,6 +37,13 @@
+ namespace android {
+ namespace camera2 {
+ 
++// B217's Camera1 extension translates these two private parameters into the
++// matching vendor metadata tags.  AOSP's Camera1 shim has no knowledge of the
++// Huawei extension, so add only the two flags needed by the stock precapture
++// path.  The tag IDs come from the B217 camera HAL's registered vendor tags.
++static constexpr uint32_t kHuaweiHwCameraFlag = 0x80020038;
++static constexpr uint32_t kHuaweiPrepareCaptureFlag = 0x8002009b;
++
+ Parameters::Parameters(int cameraId,
+         int cameraFacing) :
+         cameraId(cameraId),
+@@ -2065,6 +2072,29 @@ status_t Parameters::updateRequest(CameraMetadata *request) const {
+     ATRACE_CALL();
+     status_t res;
+ 
++    if (property_get_bool("persist.camera.huawei_precapture", false)) {
++        const uint8_t enabled = 1;
++        res = request->update(kHuaweiHwCameraFlag, &enabled, 1);
++        if (res != OK) {
++            ALOGE("%s: Camera %d: Unable to set Huawei camera flag: %s (%d)",
++                    __FUNCTION__, cameraId, strerror(-res), res);
++            return res;
++        }
++
++        // Stock HwCamera enables prepare-capture only for rear still-photo
++        // modes.  It must be present on the repeating preview request because
++        // the AE precapture trigger is mixed into that request, not the final
++        // JPEG request.
++        const uint8_t prepareCapture =
++                (cameraId == 0 && !recordingHint) ? enabled : 0;
++        res = request->update(kHuaweiPrepareCaptureFlag, &prepareCapture, 1);
++        if (res != OK) {
++            ALOGE("%s: Camera %d: Unable to set Huawei prepare-capture flag: %s (%d)",
++                    __FUNCTION__, cameraId, strerror(-res), res);
++            return res;
++        }
++    }
++
+     /**
+      * Mixin default important security values
+      * - android.led.transmit = defaulted ON

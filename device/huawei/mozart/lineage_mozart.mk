@@ -21,6 +21,12 @@ PRODUCT_DISABLE_LINEAGE_BACKUPTOOL := true
 # Inherit some common LineageOS stuff.
 $(call inherit-product, vendor/lineage/config/common_full_tablet_wifionly.mk)
 
+# Use the matching Cromite browser and System WebView pair. Their prebuilt
+# modules override Jelly and the stale AOSP WebView packages.
+PRODUCT_PACKAGES += \
+    Cromite \
+    CromiteSystemWebView
+
 # Device identifier.
 PRODUCT_DEVICE := mozart
 PRODUCT_NAME := lineage_mozart

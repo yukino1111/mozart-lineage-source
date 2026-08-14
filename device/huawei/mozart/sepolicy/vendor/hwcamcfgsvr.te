@@ -1,0 +1,25 @@
+type hwcamcfgsvr, domain;
+hal_server_domain(hwcamcfgsvr, hal_camera)
+
+type hwcamcfgsvr_exec, exec_type, vendor_file_type, file_type;
+init_daemon_domain(hwcamcfgsvr)
+
+binder_use(hwcamcfgsvr)
+hal_client_domain(hwcamcfgsvr, hal_graphics_allocator)
+add_service(hwcamcfgsvr, hwcamcfg_service)
+binder_call(hwcamcfgsvr, hal_camera_default)
+binder_call(hal_camera_default, hwcamcfgsvr)
+binder_call(hwcamcfgsvr, surfaceflinger)
+binder_call(hwcamcfgsvr, system_server)
+
+allow hal_camera_default hwcamcfg_service:service_manager find;
+allow hwcamcfgsvr permission_service:service_manager find;
+allow hwcamcfgsvr sensorservice_service:service_manager find;
+allow hwcamcfgsvr camera_data_file:dir rw_dir_perms;
+allow hwcamcfgsvr camera_data_file:file create_file_perms;
+r_dir_file(hwcamcfgsvr, mozart_debugfs_ion)
+allow hwcamcfgsvr mozart_proc_gpu_memory:file r_file_perms;
+allow hwcamcfgsvr proc_meminfo:file r_file_perms;
+allow hwcamcfgsvr graphics_device:dir search;
+allow hwcamcfgsvr graphics_device:chr_file rw_file_perms;
+allow hwcamcfgsvr system_server:unix_stream_socket { read write };

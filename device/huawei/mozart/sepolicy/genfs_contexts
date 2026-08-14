@@ -1,5 +1,9 @@
 # HiSilicon GPU memory accounting
 genfscon proc /gpu_memory u:object_r:mozart_proc_gpu_memory:s0
+genfscon proc /hifidsp/hifi u:object_r:mozart_proc_hifi:s0
+genfscon proc /post-fs-data u:object_r:mozart_proc_post_fs_data:s0
+genfscon proc /sys/kernel/hardware_alter u:object_r:mozart_proc_hardware_alter:s0
+genfscon proc /touchscreen u:object_r:mozart_proc_touchscreen:s0
 genfscon debugfs /ion u:object_r:mozart_debugfs_ion:s0
 
 # Battery, lights, storage and performance sysfs nodes
@@ -17,6 +21,14 @@ genfscon sysfs /devices/platform/hisi_fb.524289/leds u:object_r:sysfs_leds:s0
 genfscon sysfs /devices/fdf0a000.i2c/i2c-1/1-0063/leds u:object_r:sysfs_leds:s0
 genfscon sysfs /devices/fdf0a000.i2c/i2c-1/1-0067/leds u:object_r:sysfs_leds:s0
 genfscon sysfs /devices/fdf0a000.i2c/i2c-1/1-0068/leds u:object_r:sysfs_leds:s0
+genfscon sysfs /devices/huawei,camcfgdev.18/video4linux/v4l-subdev4/torch u:object_r:mozart_sysfs_torch:s0
+genfscon sysfs /devices/virtual/camerafs/node u:object_r:mozart_sysfs_camera:s0
+genfscon sysfs /devices/hisi-usb-otg/gadget/lun0/file u:object_r:sysfs_usb:s0
+genfscon sysfs /devices/ff080000.hisi_usb/release_wakelock u:object_r:sysfs_usb:s0
+genfscon sysfs /devices/fff34000.pmic/buck u:object_r:mozart_sysfs_regulator:s0
+genfscon sysfs /devices/fff34000.pmic/ldo u:object_r:mozart_sysfs_regulator:s0
+genfscon sysfs /devices/fff34000.pmic/lsw u:object_r:mozart_sysfs_regulator:s0
+genfscon sysfs /devices/fff35000.regulator_hi3630 u:object_r:mozart_sysfs_regulator:s0
 genfscon sysfs /devices/hi_mci.0/mmc_host/mmc0/mmc0:0001/block/mmcblk0/stat u:object_r:sysfs_disk_stat:s0
 genfscon sysfs /devices/hi_mci.0/mmc_host/mmc0/mmc0:0001/block/mmcblk0/queue u:object_r:mozart_sysfs_mmc_queue:s0
 genfscon sysfs /devices/virtual/bdi/179:0 u:object_r:mozart_sysfs_mmc_queue:s0
@@ -37,14 +49,26 @@ genfscon sysfs /kernel/perfhub u:object_r:mozart_sysfs_perfhub:s0
 # Connectivity and sensors
 genfscon proc /bluetooth/sleep u:object_r:proc_bluetooth_writable:s0
 genfscon sysfs /class/rfkill/rfkill0 u:object_r:sysfs_bluetooth_writable:s0
-genfscon sysfs /devices/bluetooth_power.35/rfkill/rfkill0 u:object_r:sysfs_bluetooth_writable:s0
+genfscon sysfs /devices/bluetooth_power u:object_r:sysfs_bluetooth_writable:s0
+genfscon sysfs /devices/platform/bcmdhd_wlan.1/wifi_arp_timeout u:object_r:sysfs_wlan_fwpath:s0
+genfscon sysfs /module/bcmdhd/parameters/dhd_console_ms u:object_r:sysfs_wlan_fwpath:s0
 genfscon sysfs /module/bcmdhd/parameters/firmware_path u:object_r:sysfs_wlan_fwpath:s0
 genfscon sysfs /firmware/devicetree/base/gps_power u:object_r:mozart_sysfs_gps:s0
+genfscon sysfs /devices/amba.1/e8a16000.gpio/gpio/gpio95 u:object_r:mozart_sysfs_gps:s0
+genfscon sysfs /devices/amba.1/fdf0b000.i2c/i2c-1/1-001a u:object_r:mozart_sysfs_touchscreen:s0
+genfscon sysfs /devices/platform/huawei_tp_color u:object_r:mozart_sysfs_touchscreen:s0
 genfscon sysfs /devices/platform/huawei_sensor u:object_r:mozart_sysfs_sensors:s0
+genfscon sysfs /devices/virtual/hall u:object_r:mozart_sysfs_sensors:s0
+genfscon sysfs /devices/virtual/sensors u:object_r:mozart_sysfs_sensors:s0
 genfscon sysfs /class/sensors u:object_r:mozart_sysfs_sensors:s0
+genfscon sysfs /kernel/sim u:object_r:mozart_sysfs_sim:s0
 
 # Charger controls
-genfscon sysfs /devices/huawei_charger.40 u:object_r:sysfs_power:s0
+genfscon sysfs /devices/huawei_charger u:object_r:sysfs_power:s0
+genfscon sysfs /power/monitor u:object_r:sysfs_power:s0
+
+# Legacy kernel watchdog controls
+genfscon sysfs /kernel/hungtask u:object_r:mozart_sysfs_hungtask:s0
 
 # Audio board information
 genfscon sysfs /firmware/devicetree/base/hisi,boardname u:object_r:mozart_sysfs_boardinfo:s0

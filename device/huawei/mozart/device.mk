@@ -46,6 +46,13 @@ PRODUCT_PACKAGES += \
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.carrier=wifi-only
 
+# Keep unattended test builds directly debuggable over ADB. Release user
+# builds do not inherit this property.
+ifneq ($(filter userdebug eng,$(TARGET_BUILD_VARIANT)),)
+PRODUCT_PROPERTY_OVERRIDES += \
+    persist.sys.root_access=2
+endif
+
 # WebView multiprocess is stable with the trace_marker permission fix.
 PRODUCT_PROPERTY_OVERRIDES += \
     ro.webview.multiprocess_default=true
@@ -53,6 +60,14 @@ PRODUCT_PROPERTY_OVERRIDES += \
 # Configstore
 PRODUCT_PACKAGES += \
     android.hardware.configstore@1.1-service
+
+# Camera
+PRODUCT_PACKAGES += \
+    android.hardware.camera.provider@2.4-impl \
+    android.hardware.camera.provider@2.4-service
+
+PRODUCT_COPY_FILES += \
+    $(DEVICE_PATH)/configs/permissions/mozart-camera-permissions.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/sysconfig/mozart-camera-permissions.xml
 
 # Dlopener
 PRODUCT_PACKAGES += \
@@ -155,7 +170,8 @@ PRODUCT_COPY_FILES += \
 # Power
 PRODUCT_PACKAGES += \
     android.hardware.power@1.0-impl \
-    android.hardware.power@1.0-service
+    android.hardware.power@1.0-service \
+    power.hi3635
 
 # Ramdisk
 PRODUCT_COPY_FILES += \
@@ -206,6 +222,7 @@ TARGET_SCREEN_WIDTH := 1200
 
 # Shims
 PRODUCT_PACKAGES += \
+    libshim_camera_legacy \
     libshim_gui \
     libshim_log
 
@@ -214,11 +231,18 @@ PRODUCT_PACKAGES += \
     android.hardware.usb@1.0-service.basic
 
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
-    ro.magic.api.version=0.1 \
+    ro.magic.api.version=0.1
+
+ifneq ($(filter userdebug eng,$(TARGET_BUILD_VARIANT)),)
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
     persist.sys.usb.config=mtp,adb \
     ro.secure=0 \
     ro.adb.secure=0 \
     security.perf_harden=0
+else
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+    persist.sys.usb.config=mtp
+endif
 
 # Vibrator
 PRODUCT_PACKAGES += \
