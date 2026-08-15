@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/media/libaudiohal/FactoryHalHidl.cpp b/media/libaudiohal/FactoryHalHidl.cpp
 index 5985ef03ac560ffd4e415becbaaf7f1ea4afa873..4ac2fc075297b3252348f966601360d2a9598c9f 100644
 --- a/media/libaudiohal/FactoryHalHidl.cpp

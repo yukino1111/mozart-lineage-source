@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific B217 Mali selection maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/drivers/gpu/arm/Kconfig b/drivers/gpu/arm/Kconfig
 index f4a46cbe01d4c261fe4c2c9a73740bfe941870e1..c5ab45fadf0ed8f6a2362f60569170ad43f2d66d 100755
 --- a/drivers/gpu/arm/Kconfig

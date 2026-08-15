@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/mozart-vendor.mk b/mozart-vendor.mk
 index b33df61eb8790ab2eb753fd8c3d2d5d0ee795da1..f4de3278207d18f3b4393ddd1d6d9a67c05f28bd 100644
 --- a/mozart-vendor.mk

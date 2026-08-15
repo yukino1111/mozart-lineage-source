@@ -1,3 +1,5 @@
+# Provenance: AOSP commit b11abe70adc17204605946cbe4b71b6705fd19b1 (Tim Murray) plus LOS 18.1 adaptation maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 From 87a1fdcb9e3ed563ed5b33962949d1bf3c0a2796 Mon Sep 17 00:00:00 2001
 From: Tim Murray <timmurray@google.com>
 Date: Mon, 24 Feb 2020 21:30:20 +0000

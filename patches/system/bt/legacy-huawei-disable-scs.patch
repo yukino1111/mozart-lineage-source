@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/main/Android.bp b/main/Android.bp
 index 90490ef..017c933 100644
 --- a/main/Android.bp

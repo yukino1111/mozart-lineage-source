@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 Camera2 behavior maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
 index 54885ae04da0ab3ad94419b1e2dd0a3da5d102bf..832c69211b3aeb7e1c99f4e90c3fe3b960ef8db0 100644
 --- a/AndroidManifest.xml

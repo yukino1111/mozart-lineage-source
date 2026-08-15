@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 legacy camera HAL compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/camera/common/1.0/default/CameraModule.cpp b/camera/common/1.0/default/CameraModule.cpp
 index 16fb85cc6438ddce75f34355cf7c41ab5ea2b032..a9fa61b3f7a8813ad6a439db0459694d5591a96f 100644
 --- a/camera/common/1.0/default/CameraModule.cpp

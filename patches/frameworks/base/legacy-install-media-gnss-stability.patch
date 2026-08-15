@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/media/jni/android_media_MediaCodecList.cpp b/media/jni/android_media_MediaCodecList.cpp
 index 307d80dc15c02975389c45b87a3428939327af4f..0a261b28a311954c58561f1c2b71d3d2cd13807c 100644
 --- a/media/jni/android_media_MediaCodecList.cpp

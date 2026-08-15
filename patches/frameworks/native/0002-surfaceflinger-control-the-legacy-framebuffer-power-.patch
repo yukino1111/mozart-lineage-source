@@ -1,3 +1,5 @@
+# Provenance: Eduardo Alonso's framebuffer wake work plus LOS 18.1 follow-ups maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 From 35c3032ea56ef6b463f7badaafddfede316a7d2b Mon Sep 17 00:00:00 2001
 From: Eduardo Alonso <edu@error404software.com>
 Date: Fri, 23 Nov 2018 16:34:36 +0200

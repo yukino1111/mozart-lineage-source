@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/arch/arm64/configs/lineage_mozart_defconfig b/arch/arm64/configs/lineage_mozart_defconfig
 --- a/arch/arm64/configs/lineage_mozart_defconfig
 +++ b/arch/arm64/configs/lineage_mozart_defconfig

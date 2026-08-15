@@ -1,3 +1,5 @@
+# Provenance: inspired by schwienernitzel's Android 9 Wi-Fi patch; the Android 11 implementation is maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/bcmdhd/wifi_hal/wifi_hal.cpp b/bcmdhd/wifi_hal/wifi_hal.cpp
 index 258725cbd66c065f31c6c4775adca67eef30c0d1..4e7a21bc38a53bccdae67a0498b2b2899a09ee11 100755
 --- a/bcmdhd/wifi_hal/wifi_hal.cpp

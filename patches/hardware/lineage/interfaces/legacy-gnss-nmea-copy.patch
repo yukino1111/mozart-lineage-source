@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/gnss/1.0-legacy/Gnss.cpp b/gnss/1.0-legacy/Gnss.cpp
 index 5baae78..73aea41 100644
 --- a/gnss/1.0-legacy/Gnss.cpp

@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/sensors/1.0/default/convert.cpp b/sensors/1.0/default/convert.cpp
 index 53ceb0d..49675c5 100644
 --- a/sensors/1.0/default/convert.cpp

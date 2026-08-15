@@ -1,3 +1,5 @@
+# Provenance: AOSP commit be99ad6e757c3bb65d0b3febf68ec006b3897dbb; original implementation author: Chia-I Wu. This backport is not authored by yukino1111.
+# See the repository-root PROVENANCE.md.
 From 3436823fc1d35aff9372a66fc5b90c837a3aab51 Mon Sep 17 00:00:00 2001
 From: Chia-I Wu <olv@google.com>
 Date: Tue, 30 Jan 2018 21:18:59 -0800

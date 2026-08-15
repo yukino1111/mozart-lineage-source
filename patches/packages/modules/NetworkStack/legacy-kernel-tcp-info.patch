@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/src/com/android/networkstack/netlink/TcpSocketTracker.java b/src/com/android/networkstack/netlink/TcpSocketTracker.java
 index ef33f13a119fe8068ebc5de3af416619deec1251..1f9469739cd3530812f8cac2382e32676cfb8b23 100644
 --- a/src/com/android/networkstack/netlink/TcpSocketTracker.java

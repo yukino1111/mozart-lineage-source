@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/init/first_stage_mount.cpp b/init/first_stage_mount.cpp
 index 8eb2f97489a9b3c5245f2e68ec1adc1d1e70f1b6..a34b689637df98b6ec42e0137643568ee0e085cb 100644
 --- a/init/first_stage_mount.cpp

@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 camera-vendor integration maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/camera-vendor.mk b/camera-vendor.mk
 new file mode 100644
 index 0000000000000000000000000000000000000000..21c60189127b04c0ff45a6a53a4e624adbc40082

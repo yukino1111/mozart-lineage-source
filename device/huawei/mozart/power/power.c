@@ -65,7 +65,11 @@ static void set_interaction_boost(bool enabled) {
         // limits remain authoritative because no maximum frequency is changed.
         write_value(cpu0_min, "1516800");
         write_value(cpu4_min, "2016000");
-        write_value(gpu_min, "480000000");
+        // Android 11's full-screen Quickstep and SystemUI transitions spend
+        // most of their frame time blocked in the legacy Mali command path at
+        // 480 MHz. 600 MHz is a B217-supported operating point and is only
+        // held for the bounded interaction window.
+        write_value(gpu_min, "600000000");
         write_value(ddr_min, "667000000");
         write_value(hmp_up, "300");
         write_value(hmp_down, "150");

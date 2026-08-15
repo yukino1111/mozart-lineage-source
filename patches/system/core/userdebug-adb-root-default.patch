@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific userdebug diagnostic configuration maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/adb/root/adbroot_service.cpp b/adb/root/adbroot_service.cpp
 index 0cd98255fda4b3a25300c6ded97fd3e8612c8861..9ed16efbaeb234277d7d239913e6acf29d7cc334 100644
 --- a/adb/root/adbroot_service.cpp

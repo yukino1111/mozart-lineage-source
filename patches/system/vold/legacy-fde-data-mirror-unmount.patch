@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/cryptfs.cpp b/cryptfs.cpp
 index 3c6ed15..842f298 100644
 --- a/cryptfs.cpp

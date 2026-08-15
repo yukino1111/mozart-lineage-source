@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific legacy Huawei camera ABI compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/libs/binder/Parcel.cpp b/libs/binder/Parcel.cpp
 index 5db162779e33b364f2f23b0e42c14267552819f7..e7ce27b8b294d3ed7975547e6e1a978f585c9cc2 100644
 --- a/libs/binder/Parcel.cpp

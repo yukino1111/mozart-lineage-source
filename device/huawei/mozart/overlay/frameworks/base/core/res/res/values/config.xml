@@ -150,4 +150,9 @@
 
     <!-- Whether the display blanks itself when transitioning from a doze to a non-doze state -->
     <bool name="config_displayBlanksAfterDoze">false</bool>
+
+    <!-- Reduce Quickstep texture bandwidth on the legacy Mali stack while
+         retaining substantially more detail than the 0.5 low-resolution
+         snapshot. -->
+    <item name="config_highResTaskSnapshotScale" format="float" type="dimen">0.75</item>
 </resources>

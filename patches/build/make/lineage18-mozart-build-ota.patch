@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 release integration maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/core/Makefile b/core/Makefile
 index 027df5828ed35889ad97abb67f4ea4a091947eae..3e651e9276b3c3ad63c7904a897e5b1dc0193aca 100644
 --- a/core/Makefile

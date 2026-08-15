@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
 index 28724e2ebe99d5b3e0353506c14aba92b744ff77..6642de819c137dfb9c9e8d3befebb07c5872bc30 100644
 --- a/services/core/java/com/android/server/policy/PhoneWindowManager.java

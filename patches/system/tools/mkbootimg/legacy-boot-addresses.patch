@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/mkbootimg.py b/mkbootimg.py
 index c5ff1e786c5ad87313935c92746d1e1b8c04fded..0daa619e404be4966cd1b76a2f2adaae3402ff13 100644
 --- a/mkbootimg.py

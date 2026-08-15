@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/hardware.c b/hardware.c
 index 6e72ce9f344544a1d3f05792abd499711f8681d6..e2b7743746da1012b94ec55c70b46162d4a56af4 100644
 --- a/hardware.c

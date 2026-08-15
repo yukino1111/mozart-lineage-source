@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific legacy Mali EGL compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/core/jni/android_os_GraphicsEnvironment.cpp b/core/jni/android_os_GraphicsEnvironment.cpp
 index 4f3f283859b48d10ce4dc7c1b59a06f542c2b66d..9a54d826cdf3dc4ddf9cf14c038f29a9ab456510 100644
 --- a/core/jni/android_os_GraphicsEnvironment.cpp

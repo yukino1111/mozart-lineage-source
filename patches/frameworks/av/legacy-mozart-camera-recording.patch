@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 18.1 camera-recording work maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/media/libmediaplayerservice/StagefrightRecorder.cpp b/media/libmediaplayerservice/StagefrightRecorder.cpp
 index c66def491b9dde7e8bda049a990d69c68870eead..0fce0bea0a4279d4988a9fca18e70059ec77ea20 100644
 --- a/media/libmediaplayerservice/StagefrightRecorder.cpp

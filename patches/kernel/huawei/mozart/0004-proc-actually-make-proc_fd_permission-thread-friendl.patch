@@ -1,3 +1,5 @@
+# Provenance: Linux commit 54708d2858e79a2bdda10bf8a20c80eb96c20613; original patch author: Oleg Nesterov. This import is not authored by yukino1111.
+# See the repository-root PROVENANCE.md.
 From b44551262e072e7005704e0c0afb5c177da81c7e Mon Sep 17 00:00:00 2001
 From: Oleg Nesterov <oleg@redhat.com>
 Date: Fri, 6 Nov 2015 16:30:06 -0800
