@@ -1,3 +1,5 @@
+# Provenance: Linux commit 766a85d7bc5d7f1ddd6de28bdb844eae45ec63b0; original patch author: AKASHI Takahiro. This import is not authored by yukino1111.
+# See the repository-root PROVENANCE.md.
 From 766a85d7bc5d7f1ddd6de28bdb844eae45ec63b0 Mon Sep 17 00:00:00 2001
 From: AKASHI Takahiro <takahiro.akashi@linaro.org>
 Date: Fri, 28 Nov 2014 05:26:34 +0000

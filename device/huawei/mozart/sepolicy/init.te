@@ -4,6 +4,7 @@ allow init tmpfs:lnk_file create;
 allow init mozart_tee_socket:sock_file create_file_perms;
 
 allow init proc_filesystems:file getattr;
+allow init mozart_proc_post_fs_data:file w_file_perms;
 allow init mozart_hisitest_block_device:blk_file setattr;
 allow init mozart_nve_device:chr_file getattr;
 allow init { modem_log_file modem_nv_file }:dir mounton;

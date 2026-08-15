@@ -20,6 +20,7 @@ type mozart_tee_socket, file_type;
 type mozart_gps_device, dev_type;
 type mozart_debugfs_ion, fs_type, debugfs_type;
 type mozart_proc_gpu_memory, fs_type, proc_type;
+type mozart_proc_post_fs_data, fs_type, proc_type;
 type mozart_proc_touchscreen, fs_type, proc_type;
 type mozart_sysfs_gps, fs_type, sysfs_type;
 type mozart_sysfs_gps_config, fs_type, sysfs_type;

@@ -6,6 +6,9 @@ ro.bt.bdaddr_path=/data/misc/bluedroid/macbt
 
 # Camera
 ro.vendor.camera.wrapper.hal3TrebleMinorVersion=2
+# The B217 camera HAL exports linear NV21 recording buffers. Route camera video
+# through Android's software OMX encoder to avoid TOPAZ chroma corruption.
+persist.camera.force_software_encoder=1
 
 # CPU
 ro.hardware.alter=Hisilicon Kirin 930

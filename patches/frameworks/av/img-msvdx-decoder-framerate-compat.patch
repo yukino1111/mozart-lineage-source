@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 16 media compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/media/libstagefright/ACodec.cpp b/media/libstagefright/ACodec.cpp
 index 014dfa9..b65cd9a 100644
 --- a/media/libstagefright/ACodec.cpp

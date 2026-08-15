@@ -1,5 +1,7 @@
+# Provenance: Mozart-specific LOS 16 release integration maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/core/Makefile b/core/Makefile
-index 404bb54..f8a32de 100644
+index 404bb54133bd2959c9b6e22bd2138e3c9ea015f2..f8a32de7d40dcc0038c361c1dc8df4f2f3bde50d 100644
 --- a/core/Makefile
 +++ b/core/Makefile
 @@ -3031,6 +3031,9 @@ ifdef BOARD_AVB_RECOVERY_KEY_PATH
@@ -30,7 +32,7 @@ index 404bb54..f8a32de 100644
  $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) \
  		build/make/tools/releasetools/ota_from_target_files
 diff --git a/tools/buildinfo.sh b/tools/buildinfo.sh
-index 9a03fad..71d3dac 100755
+index 9a03fadc8a40a8a27ba2ad2343d8d837c256e14d..71d3dac4b9489c7f822c0c7ae34121e76fcdc635 100755
 --- a/tools/buildinfo.sh
 +++ b/tools/buildinfo.sh
 @@ -17,8 +17,8 @@ echo "ro.build.version.min_supported_target_sdk=$PLATFORM_MIN_SUPPORTED_TARGET_S
@@ -45,7 +47,7 @@ index 9a03fad..71d3dac 100755
  echo "ro.build.flavor=$TARGET_BUILD_FLAVOR"
  if [ -n "$BOARD_BUILD_SYSTEM_ROOT_IMAGE" ] ; then
 diff --git a/tools/releasetools/common.py b/tools/releasetools/common.py
-index f7ab11c..3f9a4c2 100644
+index f7ab11cd8488834f6890f0bb11699d0aaa0f46e6..3f9a4c20ec58082845b53eb50d4545bb68488b81 100644
 --- a/tools/releasetools/common.py
 +++ b/tools/releasetools/common.py
 @@ -1893,6 +1893,9 @@ def MakeRecoveryPatch(input_dir, output_sink, recovery_img, boot_img,
@@ -58,11 +60,61 @@ index f7ab11c..3f9a4c2 100644
    full_recovery_image = info_dict.get("full_recovery_image") == "true"
    use_bsdiff = info_dict.get("no_gzip_recovery_ramdisk") == "true"
  
+diff --git a/tools/releasetools/edify_generator.py b/tools/releasetools/edify_generator.py
+index c9363431bbbfb5f7585fbf2c150afc11d8d96b58..7533ab98f0f17c8e5cd5426b31189f6a110cf206 100644
+--- a/tools/releasetools/edify_generator.py
++++ b/tools/releasetools/edify_generator.py
+@@ -143,16 +143,6 @@ class EdifyGenerator(object):
+          'build (" + getprop("ro.build.date") + ").");') % (timestamp,
+              common.ErrorCode.OLDER_BUILD, timestamp_text))
+ 
+-  def AssertDevice(self, device):
+-    """Assert that the device identifier is the given string."""
+-    cmd = ('assert(' +
+-           ' || \0'.join(['getprop("ro.product.device") == "%s" || getprop("ro.build.product") == "%s"'
+-                         % (i, i) for i in device.split(",")]) +
+-           ' || abort("E%d: This package is for device: %s; ' +
+-           'this device is " + getprop("ro.product.device") + ".");' +
+-           ');') % (common.ErrorCode.DEVICE_MISMATCH, device)
+-    self.script.append(self.WordWrap(cmd))
+-
+   def AssertSomeBootloader(self, *bootloaders):
+     """Assert that the bootloader version is one of *bootloaders."""
+     cmd = ("assert(" +
 diff --git a/tools/releasetools/ota_from_target_files.py b/tools/releasetools/ota_from_target_files.py
-index 5abbd64..cd6afaa 100755
+index be0e7986857b15ea398243c5dff82891bbf1110a..cd6afaae1fc6f08fe2580e6d8d65cb7a906b8454 100755
 --- a/tools/releasetools/ota_from_target_files.py
 +++ b/tools/releasetools/ota_from_target_files.py
-@@ -708,6 +708,13 @@ def CopyInstallTools(output_zip):
+@@ -334,28 +334,6 @@ class BuildInfo(object):
+     recovery_mount_options = self.info_dict.get("recovery_mount_options")
+     script.Mount("/oem", recovery_mount_options)
+ 
+-  def WriteDeviceAssertions(self, script, oem_no_mount):
+-    # Read the property directly if not using OEM properties.
+-    if not self.oem_props:
+-      script.AssertDevice(self.device)
+-      return
+-
+-    # Otherwise assert OEM properties.
+-    if not self.oem_dicts:
+-      raise common.ExternalError(
+-          "No OEM file provided to answer expected assertions")
+-
+-    for prop in self.oem_props.split():
+-      values = []
+-      for oem_dict in self.oem_dicts:
+-        if prop in oem_dict:
+-          values.append(oem_dict[prop])
+-      if not values:
+-        raise common.ExternalError(
+-            "The OEM file is missing the property %s" % (prop,))
+-      script.AssertOemProperty(prop, values, oem_no_mount)
+-
+-
+ class PayloadSigner(object):
+   """A class that wraps the payload signing works.
+ 
+@@ -730,6 +708,13 @@ def CopyInstallTools(output_zip):
        output_zip.write(install_source, install_target)
  
  
@@ -76,7 +128,7 @@ index 5abbd64..cd6afaa 100755
  def WriteFullOTAPackage(input_zip, output_file):
    target_info = BuildInfo(OPTIONS.info_dict, OPTIONS.oem_dicts)
  
-@@ -739,7 +746,8 @@ def WriteFullOTAPackage(input_zip, output_file):
+@@ -761,14 +746,14 @@ def WriteFullOTAPackage(input_zip, output_file):
        metadata=metadata,
        info_dict=OPTIONS.info_dict)
  
@@ -86,7 +138,14 @@ index 5abbd64..cd6afaa 100755
  
    # Assertions (e.g. downgrade check, device properties check).
    #ts = target_info.GetBuildProp("ro.build.date.utc")
-@@ -799,10 +807,14 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
+   #ts_text = target_info.GetBuildProp("ro.build.date")
+   #script.AssertOlderBuild(ts, ts_text)
+ 
+-  target_info.WriteDeviceAssertions(script, OPTIONS.oem_no_mount)
+   device_specific.FullOTA_Assertions()
+ 
+   # Two-step package strategy (in chronological order, which is *not*
+@@ -822,10 +807,14 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
  
    device_specific.FullOTA_InstallBegin()
  
@@ -105,8 +164,16 @@ index 5abbd64..cd6afaa 100755
  
    if target_info.get("system_root_image") == "true":
      sysmount = "/"
+@@ -1464,7 +1453,6 @@ def WriteBlockIncrementalOTAPackage(target_zip, source_zip, output_file):
+       target_zip, output_zip, target_info, source_info)
+ 
+   # Assertions (e.g. device properties check).
+-  target_info.WriteDeviceAssertions(script, OPTIONS.oem_no_mount)
+   device_specific.IncrementalOTA_Assertions()
+ 
+   # Two-step incremental package strategy (in chronological order,
 diff --git a/tools/releasetools/sign_target_files_apks.py b/tools/releasetools/sign_target_files_apks.py
-index fa62c8f..d1e565b 100755
+index fa62c8f63cf0ce577059866e485e54101d5954ec..d1e565b080d82438c7324e4fdbf28f94dfc7b72b 100755
 --- a/tools/releasetools/sign_target_files_apks.py
 +++ b/tools/releasetools/sign_target_files_apks.py
 @@ -470,11 +470,12 @@ def RewriteProps(data):

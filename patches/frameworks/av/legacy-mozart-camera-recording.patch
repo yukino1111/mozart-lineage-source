@@ -1,0 +1,100 @@
+# Provenance: Mozart LOS 18.1 camera work by yukino1111, ported locally to LOS 16.
+# See the repository-root PROVENANCE.md.
+diff --git a/media/libmediaplayerservice/StagefrightRecorder.cpp b/media/libmediaplayerservice/StagefrightRecorder.cpp
+index c81643e534d678086ec737984eb5ad3894671bf8..130ed890380d1a0b4fe501d042bfcb683255ead8 100644
+--- a/media/libmediaplayerservice/StagefrightRecorder.cpp
++++ b/media/libmediaplayerservice/StagefrightRecorder.cpp
+@@ -49,6 +49,7 @@
+ #include <media/stagefright/PersistentSurface.h>
+ #include <media/MediaProfiles.h>
+ #include <camera/CameraParameters.h>
++#include <cutils/properties.h>
+ 
+ #include <utils/Errors.h>
+ #include <sys/types.h>
+@@ -1783,6 +1784,14 @@ status_t StagefrightRecorder::setupVideoEncoder(
+     } else {
+         // require dataspace setup even if not using surface input
+         format->setInt32("android._using-recorder", 1);
++
++        // The legacy hi3635 TOPAZ encoder misinterprets the B217 camera HAL's
++        // linear NV21 recording buffers. Prefer Android's software OMX encoder
++        // for camera recording while leaving all other encoding paths alone.
++        if (property_get_bool("persist.camera.force_software_encoder", false)) {
++            flags |= MediaCodecSource::FLAG_PREFER_SOFTWARE_CODEC;
++            ALOGI("Preferring software video encoder for mozart camera recording");
++        }
+     }
+ 
+     sp<MediaCodecSource> encoder = MediaCodecSource::Create(
+diff --git a/media/libstagefright/CameraSource.cpp b/media/libstagefright/CameraSource.cpp
+index 3bca728d3d8dffa897e7c611b35c4832f6953684..d1a497d10d3eea0b35866cd53e855ee7608ed241 100644
+--- a/media/libstagefright/CameraSource.cpp
++++ b/media/libstagefright/CameraSource.cpp
+@@ -585,6 +585,10 @@ status_t CameraSource::initBufferQueue(uint32_t width, uint32_t height,
+     uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN;
+     if (format == HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED) {
+         usage = GRALLOC_USAGE_HW_VIDEO_ENCODER;
++    } else if (property_get_bool("persist.camera.force_software_encoder", false)) {
++        // Keep the recording use case visible to the legacy camera HAL while making
++        // the buffer CPU-readable by the software encoder's color converter.
++        usage |= GRALLOC_USAGE_HW_VIDEO_ENCODER;
+     }
+ 
+     bufferCount += kConsumerBufferCount;
+@@ -836,6 +840,14 @@ status_t CameraSource::start(MetaData *meta) {
+         }
+     }
+ 
++    if (property_get_bool("persist.camera.force_software_encoder", false)
++            && mEncoderFormat != HAL_PIXEL_FORMAT_YCrCb_420_SP) {
++        ALOGI("Overriding software encoder camera format %#x with legacy NV21 %#x",
++                mEncoderFormat, HAL_PIXEL_FORMAT_YCrCb_420_SP);
++        mEncoderFormat = HAL_PIXEL_FORMAT_YCrCb_420_SP;
++        mEncoderDataSpace = HAL_DATASPACE_V0_BT709;
++    }
++
+     status_t err;
+     if ((err = startCameraRecording()) == OK) {
+         mStarted = true;
+diff --git a/media/ndk/NdkImage.cpp b/media/ndk/NdkImage.cpp
+index 20b1667d1b5004805138462b61ffe512bc7bd94a..1475bb651af46025d93a9f8d92ea4b9b6fd5d383 100644
+--- a/media/ndk/NdkImage.cpp
++++ b/media/ndk/NdkImage.cpp
+@@ -24,9 +24,12 @@
+ 
+ #include <android_media_Utils.h>
+ #include <android_runtime/android_hardware_HardwareBuffer.h>
++#include <cutils/properties.h>
+ #include <utils/Log.h>
+ #include "hardware/camera3.h"
+ 
++#include <string.h>
++
+ using namespace android;
+ 
+ #define ALIGN(x, mask) ( ((x) + (mask) - 1) & ~((mask) - 1) )
+@@ -396,6 +399,23 @@ AImage::getJpegSize() const {
+         ALOGV("%s: Jpeg size = %d", __FUNCTION__, size);
+     }
+ 
++    if (size == 0 && width >= 2 && jpegBuffer[0] == 0xff && jpegBuffer[1] == 0xd8) {
++        char platform[PROPERTY_VALUE_MAX] = {};
++        property_get("ro.board.platform", platform, "");
++        if (!strcmp(platform, "hi3635")) {
++            uint32_t end = width - sizeof(struct camera3_jpeg_blob);
++            while (end >= 2) {
++                if (jpegBuffer[end - 2] == 0xff && jpegBuffer[end - 1] == 0xd9) {
++                    size = end;
++                    ALOGI("%s: inferred missing hi3635 JPEG footer, size=%u",
++                            __FUNCTION__, size);
++                    break;
++                }
++                end--;
++            }
++        }
++    }
++
+     // failed to find size, default to whole buffer
+     if (size == 0) {
+         /*

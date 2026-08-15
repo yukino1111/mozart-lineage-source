@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific stock MAC helper integration maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/mozart-vendor.mk b/mozart-vendor.mk
 index 21d5e73..dea574a 100644
 --- a/mozart-vendor.mk

@@ -1,3 +1,5 @@
+# Provenance: Mozart LOS 18.1 Camera2 work by yukino1111, ported locally to LOS 16.
+# See the repository-root PROVENANCE.md.
 diff --git a/AndroidManifest.xml b/AndroidManifest.xml
 index 6595990ea490e723e84cdabd4f834a2549ea7024..691c09259270bd2867253909628191431c3f1651 100644
 --- a/AndroidManifest.xml
@@ -40,6 +42,48 @@ index 6595990ea490e723e84cdabd4f834a2549ea7024..691c09259270bd286725390962819143
      </application>
  
  </manifest>
+diff --git a/src/com/android/camera/VideoModule.java b/src/com/android/camera/VideoModule.java
+index e8222f6d34c67ca38b5ea5ef40ae55b932e290b8..bf8a6bc65953fbaf8dbae1ed1ef0d4489087a9a2 100644
+--- a/src/com/android/camera/VideoModule.java
++++ b/src/com/android/camera/VideoModule.java
+@@ -387,12 +387,9 @@ public class VideoModule extends CameraModule
+         if (mPaused || mCameraDevice == null) {
+             return;
+         }
+-        if (mMediaRecorderRecording) {
+-            if (!mSnapshotInProgress) {
+-                takeASnapshot();
+-            }
+-            return;
+-        }
++        // Do not take a video snapshot while recording. The legacy hi3635 camera HAL
++        // never returns its JPEG callback and leaves recording unable to stop. Let the
++        // tap continue through the regular focus/metering path instead.
+         // Check if metering area or focus area is supported.
+         if (!mFocusAreaSupported && !mMeteringAreaSupported) {
+             return;
+@@ -1713,7 +1710,20 @@ public class VideoModule extends CameraModule
+         Set<CameraCapabilities.FocusMode> supportedFocus = mCameraCapabilities
+                 .getSupportedFocusModes();
+         if (mMediaRecorderRecording) {
+-            if (mCameraCapabilities.supports(CameraCapabilities.FocusMode.CONTINUOUS_VIDEO)) {
++            // A tap creates an explicit focus region. Temporarily switch away from
++            // continuous-video so Camera.autoFocus() actually drives the lens toward
++            // that region. FocusOverlayManager clears the regions on timeout, which
++            // naturally restores continuous-video through the branch below.
++            if (mFocusAreaSupported && mFocusManager.getFocusAreas() != null) {
++                mFocusManager.overrideFocusMode(null);
++                mCameraSettings.setFocusMode(
++                        mFocusManager.getFocusMode(mCameraSettings.getCurrentFocusMode()));
++                mCameraSettings.setFocusAreas(mFocusManager.getFocusAreas());
++                if (mMeteringAreaSupported) {
++                    mCameraSettings.setMeteringAreas(mFocusManager.getMeteringAreas());
++                }
++            } else if (mCameraCapabilities.supports(
++                    CameraCapabilities.FocusMode.CONTINUOUS_VIDEO)) {
+                 mCameraSettings.setFocusMode(CameraCapabilities.FocusMode.CONTINUOUS_VIDEO);
+                 mFocusManager.overrideFocusMode(CameraCapabilities.FocusMode.CONTINUOUS_VIDEO);
+             } else {
 diff --git a/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java b/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java
 index dc7f9003f76f34d6600bfd9167aa5e6d9fb09f30..5af00e8a07c9e63a6165d6572103e4105c5218ed 100644
 --- a/src/com/android/camera/one/config/OneCameraFeatureConfigCreator.java

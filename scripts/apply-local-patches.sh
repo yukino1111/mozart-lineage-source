@@ -37,30 +37,99 @@ apply_kirin930_patch() {
 
 bash "$PATCH_ROOT/scripts/install-device-tree.sh" "$ANDROID_TOP"
 
-# Apply the complete public-project state used by the verified B217 user build.
-# The smaller historical patches remain under patches/ for attribution, while
-# this generated final stack is the single source of truth for reproduction.
-final_patches=(
-    "build/make|build-make.patch"
-    "frameworks/av|frameworks-av.patch"
-    "frameworks/base|frameworks-base.patch"
-    "frameworks/native|frameworks-native.patch"
-    "hardware/broadcom/wlan|hardware-broadcom-wlan.patch"
-    "hardware/interfaces|hardware-interfaces.patch"
-    "kernel/huawei/mozart|kernel-huawei-mozart.patch"
-    "lineage-sdk|lineage-sdk.patch"
-    "packages/apps/Camera2|packages-apps-Camera2.patch"
-    "system/bt|system-bt.patch"
-    "system/core|system-core.patch"
-    "vendor/huawei/mozart|vendor-huawei-mozart.patch"
-    "vendor/lineage|vendor-lineage.patch"
-)
+# Apply imported work as its original mail-style patch, then apply the local
+# compatibility work by topic. This keeps third-party authorship visible and
+# makes every patch below the single applied copy of that change.
+apply_once \
+    "build/make" \
+    "$PATCH_ROOT/patches/build/make/mozart-release-ota-build-tools.patch"
 
-for entry in "${final_patches[@]}"; do
-    repo="${entry%%|*}"
-    patch="${entry#*|}"
-    apply_once "$repo" "$PATCH_ROOT/patches/final/$patch"
-done
+apply_once \
+    "frameworks/av" \
+    "$PATCH_ROOT/patches/frameworks/av/img-msvdx-decoder-framerate-compat.patch"
+apply_once \
+    "frameworks/av" \
+    "$PATCH_ROOT/patches/frameworks/av/legacy-mozart-camera-recording.patch"
+
+apply_kirin930_patch \
+    "frameworks/base" \
+    "frameworks/base/Hardware-bitmaps-support-workaround.patch"
+apply_once \
+    "frameworks/base" \
+    "$PATCH_ROOT/patches/frameworks/base/packageinstaller-webview-compat.patch"
+apply_once \
+    "frameworks/base" \
+    "$PATCH_ROOT/patches/frameworks/base/gnss-geofence-native-timeout.patch"
+apply_once \
+    "frameworks/base" \
+    "$PATCH_ROOT/patches/frameworks/base/legacy-mozart-runtime-compat.patch"
+
+apply_once \
+    "frameworks/native" \
+    "$PATCH_ROOT/patches/frameworks/native/surfaceflinger-powerdown-lcd-on-off.patch"
+apply_once \
+    "frameworks/native" \
+    "$PATCH_ROOT/patches/frameworks/native/legacy-huawei-camera-abi.patch"
+
+apply_kirin930_patch \
+    "hardware/broadcom/wlan" \
+    "hardware/broadcom/wlan/WifiHAL-Do-not-error-check-on-initialization.patch"
+
+apply_kirin930_patch \
+    "hardware/interfaces" \
+    "hardware/interfaces/Audio-skip-setMasterVolume-if-not-implement.patch"
+apply_once \
+    "hardware/interfaces" \
+    "$PATCH_ROOT/patches/hardware/interfaces/legacy-private-sensor-type-compat.patch"
+apply_once \
+    "hardware/interfaces" \
+    "$PATCH_ROOT/patches/hardware/interfaces/hwc2onfbadapter-hisi-dss-overlay-fallback.patch"
+apply_once \
+    "hardware/interfaces" \
+    "$PATCH_ROOT/patches/hardware/interfaces/legacy-huawei-camera-hal.patch"
+
+apply_once \
+    "kernel/huawei/mozart" \
+    "$PATCH_ROOT/patches/kernel/huawei/mozart/disable-debug-info.patch"
+apply_once \
+    "kernel/huawei/mozart" \
+    "$PATCH_ROOT/patches/kernel/huawei/mozart/arm64-nt-arm-system-call-regset.patch"
+apply_once \
+    "kernel/huawei/mozart" \
+    "$PATCH_ROOT/patches/kernel/huawei/mozart/legacy-mozart-b217-runtime.patch"
+
+apply_once \
+    "lineage-sdk" \
+    "$PATCH_ROOT/patches/lineage-sdk/legacy-mozart-security-info.patch"
+
+apply_once \
+    "packages/apps/Camera2" \
+    "$PATCH_ROOT/patches/packages/apps/Camera2/legacy-mozart-camera-behavior.patch"
+
+apply_kirin930_patch \
+    "system/bt" \
+    "system/bt/Hci-dont-crash-if-some-checks-fail.patch"
+
+apply_kirin930_patch \
+    "system/core" \
+    "system/core/Support-mkbootimg-0xffb88000-as-tags-offset.patch"
+apply_once \
+    "system/core" \
+    "$PATCH_ROOT/patches/system/core/init-user-permissive-selinux.patch"
+
+apply_once \
+    "vendor/huawei/mozart" \
+    "$PATCH_ROOT/patches/vendor/huawei/mozart/restore-emui31-gpu-omx-vendor-paths.patch"
+apply_once \
+    "vendor/huawei/mozart" \
+    "$PATCH_ROOT/patches/vendor/huawei/mozart/preserve-stock-mac-normalization-helper.patch"
+apply_once \
+    "vendor/huawei/mozart" \
+    "$PATCH_ROOT/patches/vendor/huawei/mozart/legacy-mozart-camera-vendor.patch"
+
+apply_once \
+    "vendor/lineage" \
+    "$PATCH_ROOT/patches/vendor/lineage/disable-backuptool-and-hudson-fetch.patch"
 
 BLOB_CACHE="$PATCH_ROOT/proprietary-blobs/huawei/mozart"
 if [[ -d "$BLOB_CACHE" ]] && [[ -n "$(find "$BLOB_CACHE" -type f -print -quit)" ]]; then

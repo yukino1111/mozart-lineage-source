@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 16 package and WebView compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/services/core/java/com/android/server/pm/PackageInstallerSession.java b/services/core/java/com/android/server/pm/PackageInstallerSession.java
 index e6ec80ae..58a5275b 100644
 --- a/services/core/java/com/android/server/pm/PackageInstallerSession.java

@@ -408,6 +408,11 @@ on post-fs
     chmod 0440 /dev/log/radio_boot
 
 on post-fs-data
+    # Unencrypted boots do not always emit Huawei's legacy "nonencrypted"
+    # trigger. Release the RDR filesystem waiter at Android's canonical data
+    # readiness event as well.
+    write /proc/post-fs-data 1
+
     mkdir /data/offlinelogs 770
 
     mkdir /data/nvram/ 0770 root nvram

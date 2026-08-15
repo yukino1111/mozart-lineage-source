@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 16 GNSS compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/services/core/java/com/android/server/location/GnssGeofenceProvider.java b/services/core/java/com/android/server/location/GnssGeofenceProvider.java
 index 6ac4aeb7..47199af4 100644
 --- a/services/core/java/com/android/server/location/GnssGeofenceProvider.java

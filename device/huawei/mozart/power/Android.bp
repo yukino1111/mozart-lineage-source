@@ -1,0 +1,19 @@
+// Copyright (C) 2026 The LineageOS Project
+// SPDX-License-Identifier: Apache-2.0
+
+cc_library_shared {
+    name: "power.hi3635",
+    relative_install_path: "hw",
+    vendor: true,
+    compile_multilib: "64",
+    srcs: ["power.c"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+    header_libs: [
+        "libhardware_headers",
+        "libutils_headers",
+    ],
+    shared_libs: ["liblog"],
+}

@@ -1,5 +1,6 @@
 # HiSilicon GPU memory accounting
 genfscon proc /gpu_memory u:object_r:mozart_proc_gpu_memory:s0
+genfscon proc /post-fs-data u:object_r:mozart_proc_post_fs_data:s0
 genfscon proc /touchscreen u:object_r:mozart_proc_touchscreen:s0
 genfscon debugfs /ion u:object_r:mozart_debugfs_ion:s0
 

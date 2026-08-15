@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific offline and release integration maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/config/common.mk b/config/common.mk
 index f6ac880..4770bff 100644
 --- a/config/common.mk

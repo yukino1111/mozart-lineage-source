@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 16 diagnostic configuration maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/init/Android.bp b/init/Android.bp
 index 3287331..ea24a5b 100644
 --- a/init/Android.bp

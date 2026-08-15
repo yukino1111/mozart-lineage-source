@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific legacy Huawei camera ABI compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/libs/ui/Gralloc2.cpp b/libs/ui/Gralloc2.cpp
 index 918251f9dc4b283d4f57073a3c99e53c4866a7c3..0ad4382f98a6da5fdd530998c3ce2c13208dfcc0 100644
 --- a/libs/ui/Gralloc2.cpp
@@ -319,60 +321,3 @@ index 7cf003dcbae92e951039df28071b2557a1590409..41c548d8405382e3f3a3ba34c86b655e
  
  #endif // ANDROID_UI_BUFFER_MAPPER_H
 -
-diff --git a/services/surfaceflinger/SurfaceFlinger.cpp b/services/surfaceflinger/SurfaceFlinger.cpp
-index f513b9fd7f4bb931bb1b60b2805769b59d463618..c98b5cb9a8182fa75db73cee9e925c53ad6f331c 100644
---- a/services/surfaceflinger/SurfaceFlinger.cpp
-+++ b/services/surfaceflinger/SurfaceFlinger.cpp
-@@ -18,15 +18,18 @@
- #define ATRACE_TAG ATRACE_TAG_GRAPHICS
- 
- #include <stdint.h>
-+#include <sys/ioctl.h>
- #include <sys/types.h>
- #include <algorithm>
- #include <errno.h>
-+#include <fcntl.h>
- #include <math.h>
- #include <mutex>
- #include <dlfcn.h>
- #include <inttypes.h>
- #include <stdatomic.h>
- #include <optional>
-+#include <unistd.h>
- 
- #include <cutils/properties.h>
- #include <log/log.h>
-@@ -99,6 +102,10 @@
- 
- #define DISPLAY_COUNT       1
- 
-+#define FBIOBLANK               0x4611
-+#define FB_BLANK_UNBLANK        0
-+#define FB_BLANK_POWERDOWN      4
-+
- /*
-  * DEBUG_SCREENSHOTS: set to true to check that screenshots are not all
-  * black pixels.
-@@ -3915,6 +3922,22 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
-              int mode, bool stateLockHeld) {
-     ALOGD("Set power mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
-             this);
-+    if (mode == HWC_POWER_MODE_OFF || mode == HWC_POWER_MODE_NORMAL) {
-+        const int fbBlankMode = mode == HWC_POWER_MODE_OFF ? FB_BLANK_POWERDOWN
-+                                                           : FB_BLANK_UNBLANK;
-+        int fd = open("/dev/graphics/fb0", O_WRONLY);
-+        if (fd < 0) {
-+            ALOGE("Error opening LCD framebuffer: %d (%s)", errno, strerror(errno));
-+        } else {
-+            int ret = ioctl(fd, FBIOBLANK, fbBlankMode);
-+            close(fd);
-+
-+            if (ret < 0) {
-+                ALOGE("Error setting LCD blank mode %d: %d (%s)", fbBlankMode, errno,
-+                        strerror(errno));
-+            }
-+        }
-+    }
-     int32_t type = hw->getDisplayType();
-     int currentMode = hw->getPowerMode();
- 

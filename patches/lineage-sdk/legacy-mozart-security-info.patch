@@ -1,3 +1,5 @@
+# Provenance: Mozart-specific LOS 16 security-info behavior maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/sdk/src/java/org/lineageos/internal/preference/deviceinfo/LineageVendorSecurityPatchTextView.java b/sdk/src/java/org/lineageos/internal/preference/deviceinfo/LineageVendorSecurityPatchTextView.java
 index 3f0521ab5da10e7d70c131f929ee4be2d172a7db..8cf30ba1d05c9642d012707720c90b73d1a07792 100644
 --- a/sdk/src/java/org/lineageos/internal/preference/deviceinfo/LineageVendorSecurityPatchTextView.java

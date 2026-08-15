@@ -1,0 +1,57 @@
+# Provenance: Mozart-specific B217 kernel runtime fixes maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
+diff --git a/drivers/gpu/arm/Kconfig b/drivers/gpu/arm/Kconfig
+index f4a46cbe01d4c261fe4c2c9a73740bfe941870e1..c5ab45fadf0ed8f6a2362f60569170ad43f2d66d 100755
+--- a/drivers/gpu/arm/Kconfig
++++ b/drivers/gpu/arm/Kconfig
+@@ -8,7 +8,7 @@ source "drivers/gpu/arm/mali4_64/Kconfig"
+ endif
+ 
+ if HISI_3635
+-source "drivers/gpu/arm/malit6_64/Kconfig"
++source "drivers/gpu/arm/r8p0-01dev0/Kconfig"
+ endif
+ 
+ if ARCH_HI3630
+diff --git a/drivers/gpu/arm/Makefile b/drivers/gpu/arm/Makefile
+index 966ad819cf052e0b54fc2551b4c027dd0bf21c9d..8786f2e218e33af2273a25b9bb91019b4a842dc5 100755
+--- a/drivers/gpu/arm/Makefile
++++ b/drivers/gpu/arm/Makefile
+@@ -7,7 +7,7 @@ endif
+ endif
+ 
+ ifdef CONFIG_HISI_3635
+-obj-y                   += malit6_64/
++obj-y                   += r8p0-01dev0/
+ endif
+ 
+ ifdef CONFIG_ARCH_HI3630
+diff --git a/drivers/hisi/rdr/rdr_dump.c b/drivers/hisi/rdr/rdr_dump.c
+index b07f40d3a7ff328fcd12634faee243b32f6d7676..d955d80ca1964768ddf04a6b26abd3dd117f4e35 100755
+--- a/drivers/hisi/rdr/rdr_dump.c
++++ b/drivers/hisi/rdr/rdr_dump.c
+@@ -69,7 +69,9 @@ int wait_for_fs_ready(void)
+ 	wait_for_postfsdata(0);
+ #endif
+ 	ret += rdr_wait4partition("/data/lost+found", 30);
+-	ret += rdr_wait4partition("/dev/block", 30);
++	/* /data being mounted already proves that its block device is ready. The
++	 * RDR kthread retains an early mount namespace where /dev/block may never
++	 * become visible, so waiting for that directory can loop forever. */
+ 
+ 	return ret;
+ }
+diff --git a/fs/proc/post-fs-data.c b/fs/proc/post-fs-data.c
+index 3873f65c1a9623b35595060eab7f23937de20d86..fc97c1207ff70904994608f333fe6be9c74d235e 100644
+--- a/fs/proc/post-fs-data.c
++++ b/fs/proc/post-fs-data.c
+@@ -34,7 +34,8 @@ EXPORT_SYMBOL(set_postfsdata_flag);
+ int wait_for_postfsdata(unsigned int timeout)
+ {
+ 	while (postfsdata_flag == 0) {
+-		schedule_timeout(HZ);
++		/* schedule_timeout() does not sleep while the task is runnable. */
++		schedule_timeout_interruptible(HZ);
+ 		if (timeout) {
+ 			timeout--;
+ 			if (timeout == 0)

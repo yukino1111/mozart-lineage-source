@@ -1,3 +1,5 @@
+# Provenance: Huawei hi3630 DSS ABI declarations plus Mozart adapter work maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
 diff --git a/graphics/composer/2.1/utils/hwc2onfbadapter/Android.bp b/graphics/composer/2.1/utils/hwc2onfbadapter/Android.bp
 index 73a41f7..fe33df9 100644
 --- a/graphics/composer/2.1/utils/hwc2onfbadapter/Android.bp

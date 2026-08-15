@@ -15,8 +15,9 @@ revisions.
   patches inherited from the upstream device tree;
 - the other paths below `patches/` contain this branch's maintained changes to
   upstream repositories;
-- `patches/final/` is the complete patch state used by the verified B217 user
-  build; smaller historical patches are retained for attribution;
+- `patches/` contains the complete topic-oriented stack used by the final
+  signed B217 user build; copied patches retain their original mail headers
+  and local compatibility work is kept separate;
 - `local_manifests/mozart.xml` pins device, vendor and kernel baselines to exact
   commits.
 
@@ -30,7 +31,8 @@ scripts/apply-local-patches.sh /android/lineage16-mozart
 ```
 
 The script first installs this repository's complete device source and then
-applies the final patch stack idempotently. The unchanged Huawei `hw_healthd`
+applies every audited patch exactly once, in dependency order and idempotently.
+The unchanged Huawei `hw_healthd`
 executable remains supplied by the pinned device baseline; the B217
 `oeminfo_nvm_server` and `teecd` executables are installed by the proprietary
 extraction step. None of them are duplicated here.
@@ -66,6 +68,14 @@ If the DSS ioctl fails, SurfaceFlinger falls back to the existing fbdev/client
 composition path for that process. `dumpsys SurfaceFlinger` includes a
 `mozart_dss_overlay` line for quick status checks.
 
+## Runtime performance
+
+The maintained device tree includes a hi3635 power HAL that applies a short,
+B217-supported CPU/GPU/DDR interaction boost. Foreground, foreground-boost and
+top-app cpusets may use all eight cores; thermal and maximum-frequency limits
+remain controlled by the kernel. The kernel patch also fixes the Huawei RDR
+post-fs-data waiter so it sleeps correctly and exits after `/data` is ready.
+
 ## Acknowledgements
 
 The complete source and patch attribution audit is recorded in
@@ -80,5 +90,6 @@ Unless otherwise noted, this repository's scripts, documentation, and local text
 patches are licensed under the Apache License 2.0. This license does not apply
 to third-party proprietary binaries, which are not included here.
 
-Kernel-related patches, if added later, should be marked separately and follow
-the upstream kernel license, `GPL-2.0-only`.
+Kernel patches follow the upstream kernel license, `GPL-2.0-only`. The DSS
+overlay patch's kernel-derived ABI declarations are identified separately in
+`PROVENANCE.md`; the adapter logic targets AOSP `HWC2OnFbAdapter`.

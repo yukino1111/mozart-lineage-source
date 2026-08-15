@@ -1,0 +1,69 @@
+# Provenance: Mozart-specific LOS 16 runtime compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
+diff --git a/media/jni/android_media_Utils.cpp b/media/jni/android_media_Utils.cpp
+index 458d8471dafdd3c05cb1fafbd9280ef2dc082d1d..f5ed73cdb292420cb21078f77008f92982c1b86e 100644
+--- a/media/jni/android_media_Utils.cpp
++++ b/media/jni/android_media_Utils.cpp
+@@ -18,6 +18,7 @@
+ #define LOG_TAG "AndroidMediaUtils"
+ 
+ #include <hardware/camera3.h>
++#include <cutils/properties.h>
+ #include <utils/Log.h>
+ #include "android_media_Utils.h"
+ 
+@@ -27,6 +28,8 @@
+ 
+ #include <nativehelper/ScopedLocalRef.h>
+ 
++#include <string.h>
++
+ #define ALIGN(x, mask) ( ((x) + (mask) - 1) & ~((mask) - 1) )
+ 
+ namespace android {
+@@ -628,6 +631,26 @@ uint32_t Image_getJpegSize(LockedImage* buffer, bool usingRGBAOverride) {
+         ALOGV("%s: Jpeg size = %d", __FUNCTION__, size);
+     }
+ 
++    // B217 can return a valid JPEG without the camera3 transport footer.
++    // Restrict the compatibility scan to hi3635 and use the final EOI so an
++    // embedded EXIF thumbnail cannot truncate the main image.
++    if (size == 0 && width >= 2 && jpegBuffer[0] == 0xff && jpegBuffer[1] == 0xd8) {
++        char platform[PROPERTY_VALUE_MAX] = {};
++        property_get("ro.board.platform", platform, "");
++        if (!strcmp(platform, "hi3635")) {
++            uint32_t end = width - sizeof(struct camera3_jpeg_blob);
++            while (end >= 2) {
++                if (jpegBuffer[end - 2] == 0xff && jpegBuffer[end - 1] == 0xd9) {
++                    size = end;
++                    ALOGI("%s: inferred missing hi3635 JPEG footer, size=%u",
++                            __FUNCTION__, size);
++                    break;
++                }
++                end--;
++            }
++        }
++    }
++
+     // failed to find size, default to whole buffer
+     if (size == 0) {
+         /*
+@@ -952,4 +975,3 @@ int getBufferHeight(BufferItem* buffer) {
+ }
+ 
+ }  // namespace android
+-
+diff --git a/services/core/java/com/android/server/policy/PhoneWindowManager.java b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+index ef8fb37aa3759f404202f18559de0da114a28d9c..9e638465afcf3a715cc0a7744550ee1019114f87 100644
+--- a/services/core/java/com/android/server/policy/PhoneWindowManager.java
++++ b/services/core/java/com/android/server/policy/PhoneWindowManager.java
+@@ -8615,6 +8615,9 @@ public class PhoneWindowManager implements WindowManagerPolicy {
+     }
+ 
+     private void sendLidChangeBroadcast() {
++        if (!mSystemBooted) {
++            return;
++        }
+         Log.d(TAG, "Sending cover change broadcast, mLidState=" + mLidState);
+         Intent intent = new Intent(lineageos.content.Intent.ACTION_LID_STATE_CHANGED);
+         intent.putExtra(lineageos.content.Intent.EXTRA_LID_STATE, mLidState);
