@@ -138,16 +138,19 @@ if ! readelf -Ws "$gps_daemon" | grep -F 'UND TLS_method' >/dev/null; then
     exit 4
 fi
 
+legacy_symbol_patcher="$ANDROID_TOP/device/huawei/mozart/tools/patch_legacy_icu_symbols.sh"
+if [[ ! -x "$legacy_symbol_patcher" ]]; then
+    echo "error: missing legacy symbol compatibility tool: $legacy_symbol_patcher" >&2
+    exit 4
+fi
+SYMBOL_MAP="$ANDROID_TOP/device/huawei/mozart/tools/gps_legacy_symbols.map" \
+    "$legacy_symbol_patcher" "$gps_daemon"
+
 validate_load_segments "$camera_config_server"
 validate_load_segments "$gps_daemon"
 validate_load_segments "$camera_algo"
 
-audio_symbol_patcher="$ANDROID_TOP/device/huawei/mozart/tools/patch_legacy_icu_symbols.sh"
-if [[ ! -x "$audio_symbol_patcher" ]]; then
-    echo "error: missing audio compatibility tool: $audio_symbol_patcher" >&2
-    exit 4
-fi
-"$audio_symbol_patcher" \
+"$legacy_symbol_patcher" \
     "$VENDOR_PROPRIETARY/lib/hw/audio.primary.hi3635.so" \
     "$VENDOR_PROPRIETARY/lib64/hw/audio.primary.hi3635.so" \
     "$VENDOR_PROPRIETARY/lib/libhuaweiprocessing.so"
