@@ -69,7 +69,6 @@ check_prebuilt teecd \
 # directories and symlinks. A trailing slash only protects directories.
 rsync -a --delete \
     --exclude='/.git' \
-    --exclude='/patches/' \
     --exclude='/rootdir/sbin/' \
     --exclude='/prebuilt/cromite/*.apk' \
     --exclude='/prebuilt/cromite/lib/' \
