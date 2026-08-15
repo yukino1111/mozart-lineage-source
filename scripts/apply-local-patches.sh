@@ -99,10 +99,6 @@ apply_once \
     "$PATCH_ROOT/patches/kernel/huawei/mozart/legacy-mozart-b217-runtime.patch"
 
 apply_once \
-    "lineage-sdk" \
-    "$PATCH_ROOT/patches/lineage-sdk/legacy-mozart-security-info.patch"
-
-apply_once \
     "packages/apps/Camera2" \
     "$PATCH_ROOT/patches/packages/apps/Camera2/legacy-mozart-camera-behavior.patch"
 

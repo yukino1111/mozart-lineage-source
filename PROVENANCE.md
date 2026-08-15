@@ -101,10 +101,8 @@ loop and `/dev/block` wait when this fix was made.
 - `kernel/huawei/mozart/disable-debug-info.patch` and
   `legacy-mozart-b217-runtime.patch`: build-size choice, B217 Mali selection and
   the locally diagnosed RDR waiter correction.
-- `lineage-sdk/legacy-mozart-security-info.patch` and
-  `packages/apps/Camera2/legacy-mozart-camera-behavior.patch`: device security
-  display behavior and Camera2 compatibility, including the LOS 18 tap-focus
-  port.
+- `packages/apps/Camera2/legacy-mozart-camera-behavior.patch`: Camera2
+  compatibility, including the LOS 18 tap-focus port.
 - `system/core/init-user-permissive-selinux.patch`: local userdebug diagnostic
   capability; release builds still boot Enforcing.
 - `vendor/huawei/mozart/restore-emui31-gpu-omx-vendor-paths.patch`,

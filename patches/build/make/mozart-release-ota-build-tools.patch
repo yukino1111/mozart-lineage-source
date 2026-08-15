@@ -173,11 +173,20 @@ index be0e7986857b15ea398243c5dff82891bbf1110a..cd6afaae1fc6f08fe2580e6d8d65cb7a
  
    # Two-step incremental package strategy (in chronological order,
 diff --git a/tools/releasetools/sign_target_files_apks.py b/tools/releasetools/sign_target_files_apks.py
-index fa62c8f63cf0ce577059866e485e54101d5954ec..d1e565b080d82438c7324e4fdbf28f94dfc7b72b 100755
+index fa62c8f63cf0ce577059866e485e54101d5954ec..e0f6c6021ddd9cbbc7a2139724c167117e0b73f4 100755
 --- a/tools/releasetools/sign_target_files_apks.py
 +++ b/tools/releasetools/sign_target_files_apks.py
-@@ -470,11 +470,12 @@ def RewriteProps(data):
-       elif key == "ro.build.tags":
+@@ -277,6 +277,7 @@ def ProcessTargetFiles(input_tf_zip, output_tf_zip, misc_info,
+ 
+     # System properties.
+     elif info.filename in ("SYSTEM/build.prop",
++                           "SYSTEM/vendor/build.prop",
+                            "VENDOR/build.prop",
+                            "SYSTEM/etc/prop.default",
+                            "BOOT/RAMDISK/prop.default",
+@@ -470,11 +471,12 @@ def RewriteProps(data):
+-      elif key == "ro.build.tags":
++      elif key in ("ro.build.tags", "ro.vendor.build.tags"):
          value = EditTags(value)
        elif key == "ro.build.display.id":
 -        # change, eg, "JWR66N dev-keys" to "JWR66N"

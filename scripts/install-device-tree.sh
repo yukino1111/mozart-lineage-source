@@ -54,7 +54,6 @@ check_prebuilt hw_healthd 6cad7ff3470a05df2bccef2489ba96d07286052d
 
 rsync -a --delete \
     --exclude='/.git/' \
-    --exclude='/patches/' \
     --exclude='/rootdir/sbin/' \
     --exclude='/prebuilt/cromite/*.apk' \
     --exclude='/prebuilt/cromite/lib/' \
