@@ -43,10 +43,13 @@ static bool boost_active;
 static bool boost_thread_started;
 static bool low_power_mode;
 
-static void write_value(const char *path, const char *value) {
+static void write_value_internal(const char *path, const char *value,
+                                 bool missing_is_ok) {
     int fd = open(path, O_WRONLY | O_CLOEXEC);
     if (fd < 0) {
-        ALOGE("open %s failed: %s", path, strerror(errno));
+        if (!missing_is_ok || errno != ENOENT) {
+            ALOGE("open %s failed: %s", path, strerror(errno));
+        }
         return;
     }
 
@@ -57,6 +60,14 @@ static void write_value(const char *path, const char *value) {
               written < 0 ? strerror(errno) : "short write");
     }
     close(fd);
+}
+
+static void write_value(const char *path, const char *value) {
+    write_value_internal(path, value, false);
+}
+
+static void write_optional_value(const char *path, const char *value) {
+    write_value_internal(path, value, true);
 }
 
 static void set_interaction_boost(bool enabled) {
@@ -196,7 +207,9 @@ static void power_hint(struct power_module *module, power_hint_t hint,
         case POWER_HINT_INTERACTION:
             // The B217 power HAL pulses the little cluster on every real
             // touch. Android limits identical user-activity hints to 10 Hz.
-            write_value(cpu0_boostpulse, "1");
+            // The governor creates boostpulse late during boot. The explicit
+            // bounded frequency boost below remains effective before that.
+            write_optional_value(cpu0_boostpulse, "1");
             request_boost(data != NULL ? *(int32_t *)data
                                        : DEFAULT_INTERACTION_MS);
             break;

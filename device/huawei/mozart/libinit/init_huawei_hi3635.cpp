@@ -83,12 +83,12 @@ void vendor_load_properties() {
 
     set_ro_build_prop(
             "fingerprint",
-            "huawei/mozart/hi3635:9/PQ3A.190801/" + build_number +
+            "huawei/mozart/hi3635:11/RQ3A.211001.001/" + build_number +
                     ":user/release-keys",
             false);
     set_ro_build_prop(
             "description",
-            "lineage_mozart-user 9 PQ3A.190801.002 " + build_number +
+            "lineage_mozart-user 11 RQ3A.211001.001 " + build_number +
                     " release-keys",
             false);
 }
