@@ -988,6 +988,14 @@ service hw_healthd /sbin/hw_healthd -c
     seclabel u:r:healthd:s0
     disabled
 
+service vendor.health-hal-2-0 /vendor/bin/hw/android.hardware.health@2.0-service.mozart
+    interface android.hardware.health@2.0::IHealth default
+    class hal
+    user system
+    group system
+    capabilities WAKE_ALARM
+    file /dev/kmsg w
+
 service HwCamCfgSvr /vendor/bin/HwCamCfgSvr hi3635 MOZART
     class hal
     oneshot

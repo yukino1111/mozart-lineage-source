@@ -1,0 +1,23 @@
+# Provenance: Mozart-specific LOS 16 compatibility maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
+diff --git a/health/2.0/default/Health.cpp b/health/2.0/default/Health.cpp
+index 35cb9ce..564a2dc 100644
+--- a/health/2.0/default/Health.cpp
++++ b/health/2.0/default/Health.cpp
+@@ -24,6 +24,8 @@ using android::hardware::health::V1_0::hal_conversion::convertToHealthInfo;
+ 
+ extern void healthd_battery_update_internal(bool);
+ 
++__attribute__((weak)) void healthd_board_battery_property_update(int, int64_t*) {}
++
+ namespace android {
+ namespace hardware {
+ namespace health {
+@@ -82,6 +84,7 @@ void getProperty(const std::unique_ptr<BatteryMonitor>& monitor, int id, T defau
+         LOG(DEBUG) << "getProperty(" << id << ")"
+                    << " fails: (" << err << ") " << strerror(-err);
+     } else {
++        healthd_board_battery_property_update(id, &prop.valueInt64);
+         ret = static_cast<T>(prop.valueInt64);
+     }
+     switch (err) {

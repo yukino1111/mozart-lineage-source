@@ -5,6 +5,7 @@ genfscon proc /touchscreen u:object_r:mozart_proc_touchscreen:s0
 genfscon debugfs /ion u:object_r:mozart_debugfs_ion:s0
 
 # Battery, lights, storage and performance sysfs nodes
+genfscon sysfs /devices/virtual/thermal u:object_r:sysfs_thermal:s0
 genfscon sysfs /devices/fff34000.pmic/battery.87/power_supply/Battery u:object_r:sysfs_batteryinfo:s0
 genfscon sysfs /devices/fff34000.pmic/battery.87/power_supply/Mains u:object_r:sysfs_batteryinfo:s0
 genfscon sysfs /devices/fff34000.pmic/battery.87/power_supply/USB u:object_r:sysfs_batteryinfo:s0

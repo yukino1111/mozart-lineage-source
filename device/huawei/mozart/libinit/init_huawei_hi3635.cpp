@@ -13,7 +13,6 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
-#include <android-base/properties.h>
 #include <android-base/strings.h>
 
 #define _REALLY_INCLUDE_SYS__SYSTEM_PROPERTIES_H_
@@ -24,16 +23,12 @@
 
 #define PRODUCT_NAME "sys/firmware/devicetree/base/hisi,boardname"
 
-#ifndef MOZART_BUILD_NUMBER
-#define MOZART_BUILD_NUMBER "00000000"
-#endif
+constexpr char kStockBuildDescription[] =
+        "M2-user 6.0 HUAWEIM2-801W C233B217 release-keys";
+constexpr char kStockBuildDisplayId[] = "M2-801WV100R001C233B217";
+constexpr char kStockBuildFingerprint[] =
+        "HUAWEI/M2/HWMozart:6.0/HUAWEIM2-801W/C233B217:user/release-keys";
 
-#define MOZART_BUILD_FINGERPRINT \
-    "huawei/mozart/hi3635:9/PQ3A.190801/" MOZART_BUILD_NUMBER ":user/release-keys"
-#define MOZART_BUILD_DESCRIPTION \
-    "lineage_mozart-user 9 PQ3A.190801.002 " MOZART_BUILD_NUMBER " release-keys"
-
-using android::base::GetProperty;
 using std::string;
 
 std::vector<string> ro_props_default_source_order = {
@@ -70,24 +65,36 @@ void set_ro_build_prop(const string &prop, const string &value, bool product = t
 void vendor_load_properties() {
     std::string model;
 
+    set_ro_build_prop("brand", "HUAWEI");
+    set_ro_build_prop("device", "HWMozart");
+    set_ro_build_prop("manufacturer", "HUAWEI");
+    set_ro_build_prop("name", "M2");
+
     if (android::base::ReadFileToString(PRODUCT_NAME, &model)) {
         if (model.find("801W") != std::string::npos) {
-            set_ro_build_prop("model", "M2-801W");
+            set_ro_build_prop("model", "HUAWEI M2-801W");
         }
         else if (model.find("801L") != std::string::npos) {
-            set_ro_build_prop("model", "M2-801L");
+            set_ro_build_prop("model", "HUAWEI M2-801L");
         }
         else if (model.find("802L") != std::string::npos) {
-            set_ro_build_prop("model", "M2-802L");
+            set_ro_build_prop("model", "HUAWEI M2-802L");
         }
         else if (model.find("803L") != std::string::npos) {
-            set_ro_build_prop("model", "M2-803L");
+            set_ro_build_prop("model", "HUAWEI M2-803L");
         }
         else {
-            set_ro_build_prop("model", "MediaPad M2 8.0");
+            set_ro_build_prop("model", "HUAWEI MediaPad M2 8.0");
         }
     }
 
-    set_ro_build_prop("fingerprint", MOZART_BUILD_FINGERPRINT, false);
-    set_ro_build_prop("description", MOZART_BUILD_DESCRIPTION, false);
+    set_ro_build_prop("description", kStockBuildDescription, false);
+    set_ro_build_prop("fingerprint", kStockBuildFingerprint, false);
+    set_ro_build_prop("id", "HUAWEIM2-801W", false);
+    set_ro_build_prop("version.incremental", "C233B217", false);
+    property_override("ro.build.display.id", kStockBuildDisplayId);
+    property_override("ro.bootimage.build.description", kStockBuildDescription);
+    property_override("ro.bootimage.build.fingerprint", kStockBuildFingerprint);
+    property_override("ro.bootimage.build.id", "HUAWEIM2-801W");
+    property_override("ro.bootimage.build.version.incremental", "C233B217");
 }

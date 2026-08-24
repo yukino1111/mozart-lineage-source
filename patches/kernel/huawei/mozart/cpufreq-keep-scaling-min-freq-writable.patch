@@ -1,0 +1,40 @@
+# Provenance: Mozart-specific hi3635 cpufreq permission fix maintained by yukino1111.
+# See the repository-root PROVENANCE.md.
+diff --git a/drivers/cpufreq/cpufreq.c b/drivers/cpufreq/cpufreq.c
+index 9b00cc1d..20a4eb1b 100755
+--- a/drivers/cpufreq/cpufreq.c
++++ b/drivers/cpufreq/cpufreq.c
+@@ -698,7 +698,13 @@ cpufreq_freq_attr_ro(scaling_cur_freq);
+ cpufreq_freq_attr_ro(bios_limit);
+ cpufreq_freq_attr_ro(related_cpus);
+ cpufreq_freq_attr_ro(affected_cpus);
+-cpufreq_freq_attr_rw(scaling_min_freq);
++/*
++ * The hi3635 big-cluster policy disappears when its policy CPU is offlined.
++ * It can be recreated after the CPU uevent, too late for ueventd to repair its
++ * DAC ownership. SELinux still restricts writes to the Power HAL and init, so
++ * keep the attribute writable across every policy recreation at the DAC layer.
++ */
++cpufreq_freq_attr_rw_perm(scaling_min_freq, 0666);
+ cpufreq_freq_attr_rw(scaling_max_freq);
+ cpufreq_freq_attr_rw(scaling_governor);
+ cpufreq_freq_attr_rw(scaling_setspeed);
+diff --git a/include/linux/cpufreq.h b/include/linux/cpufreq.h
+index e96a1dd3..06e3295f 100755
+--- a/include/linux/cpufreq.h
++++ b/include/linux/cpufreq.h
+@@ -323,9 +323,12 @@ static inline void cpufreq_resume(void) {}
+ static struct freq_attr _name =			\
+ __ATTR(_name, _perm, show_##_name, NULL)
+ 
+-#define cpufreq_freq_attr_rw(_name)		\
++#define cpufreq_freq_attr_rw_perm(_name, _perm)	\
+ static struct freq_attr _name =			\
+-__ATTR(_name, 0644, show_##_name, store_##_name)
++__ATTR(_name, _perm, show_##_name, store_##_name)
++
++#define cpufreq_freq_attr_rw(_name)		\
++cpufreq_freq_attr_rw_perm(_name, 0644)
+ 
+ struct global_attr {
+ 	struct attribute attr;

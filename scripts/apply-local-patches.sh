@@ -87,6 +87,9 @@ apply_once \
 apply_once \
     "hardware/interfaces" \
     "$PATCH_ROOT/patches/hardware/interfaces/legacy-huawei-camera-hal.patch"
+apply_once \
+    "hardware/interfaces" \
+    "$PATCH_ROOT/patches/hardware/interfaces/health-board-battery-property-hook.patch"
 
 apply_once \
     "kernel/huawei/mozart" \
@@ -97,6 +100,9 @@ apply_once \
 apply_once \
     "kernel/huawei/mozart" \
     "$PATCH_ROOT/patches/kernel/huawei/mozart/legacy-mozart-b217-runtime.patch"
+apply_once \
+    "kernel/huawei/mozart" \
+    "$PATCH_ROOT/patches/kernel/huawei/mozart/cpufreq-keep-scaling-min-freq-writable.patch"
 
 apply_once \
     "packages/apps/Camera2" \

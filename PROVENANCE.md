@@ -98,9 +98,14 @@ loop and `/dev/block` wait when this fix was made.
   `legacy-huawei-camera-hal.patch`: local sensor, optional DSS overlay and
   camera HAL compatibility; the DSS ioctl declarations have the Huawei kernel
   origin recorded above.
+- `hardware/interfaces/health-board-battery-property-hook.patch`: local hook
+  allowing the Mozart Health service to normalize legacy fuel-gauge units.
 - `kernel/huawei/mozart/disable-debug-info.patch` and
   `legacy-mozart-b217-runtime.patch`: build-size choice, B217 Mali selection and
   the locally diagnosed RDR waiter correction.
+- `kernel/huawei/mozart/cpufreq-keep-scaling-min-freq-writable.patch`: local
+  fix preserving Power HAL access when the big-cluster cpufreq policy is
+  dynamically recreated.
 - `packages/apps/Camera2/legacy-mozart-camera-behavior.patch`: Camera2
   compatibility, including the LOS 18 tap-focus port.
 - `system/core/init-user-permissive-selinux.patch`: local userdebug diagnostic
