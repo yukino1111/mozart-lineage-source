@@ -6,10 +6,10 @@ Date: Sun, 9 Aug 2026 14:28:58 +0800
 Subject: [PATCH 3/3] light: synchronize the mozart framebuffer state
 
 ---
- light/2.0/default/Light.cpp                   | 48 ++++++++++++++++++-
+ light/2.0/default/Light.cpp                   | 51 ++++++++++++++++++-
  light/2.0/default/Light.h                     |  3 ++
  .../android.hardware.light@2.0-service.rc     |  2 +-
- 3 files changed, 51 insertions(+), 2 deletions(-)
+ 3 files changed, 54 insertions(+), 2 deletions(-)
 
 diff --git a/light/2.0/default/Light.cpp b/light/2.0/default/Light.cpp
 index 5484d2db43..f1a11245fb 100644
@@ -32,14 +32,17 @@ index 5484d2db43..f1a11245fb 100644
  
  #include "Light.h"
  
-@@ -28,6 +35,30 @@ namespace light {
+@@ -28,6 +35,33 @@ namespace light {
  namespace V2_0 {
  namespace implementation {
  
 +namespace {
 +
 +bool isMozart() {
-+    static const bool value = android::base::GetProperty("ro.product.device", "") == "mozart";
++    static const bool value = []() {
++        const auto device = android::base::GetProperty("ro.product.device", "");
++        return device == "mozart" || device == "HWMozart";
++    }();
 +    return value;
 +}
 +
@@ -63,7 +66,7 @@ index 5484d2db43..f1a11245fb 100644
  static_assert(LIGHT_FLASH_NONE == static_cast<int>(Flash::NONE),
      "Flash::NONE must match legacy value.");
  static_assert(LIGHT_FLASH_TIMED == static_cast<int>(Flash::TIMED),
-@@ -64,7 +95,22 @@ Return<Status> Light::setLight(Type type, const LightState& state)  {
+@@ -64,7 +98,22 @@ Return<Status> Light::setLight(Type type, const LightState& state)  {
          .brightnessMode = static_cast<int>(state.brightnessMode),
      };
  

@@ -72,6 +72,7 @@ replace this classification rather than being silently ignored:
 - `patches/frameworks/native/legacy-huawei-camera-abi.patch`
 - `patches/hardware/interfaces/0002-wifi-validate-legacy-interface-handles.patch`
 - `patches/hardware/interfaces/0003-light-synchronize-the-mozart-framebuffer-state.patch`
+- `patches/hardware/interfaces/0004-health-add-board-battery-property-hook.patch`
 - `patches/hardware/interfaces/legacy-huawei-camera-hal1.patch`
 - `patches/hardware/interfaces/legacy-private-sensor-types.patch`
 - `patches/hardware/libhardware/legacy-mozart-gralloc-path.patch`
@@ -79,6 +80,7 @@ replace this classification rather than being silently ignored:
 - `patches/kernel/huawei/mozart/0001-mozart-disable-kernel-debug-information.patch`
 - `patches/kernel/huawei/mozart/0003-ion-require-the-CMA-heap-device.patch`
 - `patches/kernel/huawei/mozart/0005-mozart-use-b217-r8p0-mali.patch`
+- `patches/kernel/huawei/mozart/0006-cpufreq-keep-scaling-min-freq-writable.patch`
 - `patches/kernel/huawei/mozart/legacy-fde-aes-compat.patch`
 - `patches/packages/apps/Bluetooth/legacy-huawei-disable-scs.patch`
 - `patches/packages/apps/Camera2/legacy-mozart-camera-behavior.patch`

@@ -84,6 +84,10 @@ apply_once \
 
 apply_once \
     "hardware/interfaces" \
+    "$PATCH_ROOT/patches/hardware/interfaces/0004-health-add-board-battery-property-hook.patch"
+
+apply_once \
+    "hardware/interfaces" \
     "$PATCH_ROOT/patches/hardware/interfaces/legacy-private-sensor-types.patch"
 
 apply_once \
@@ -121,6 +125,10 @@ apply_once \
 apply_once \
     "kernel/huawei/mozart" \
     "$PATCH_ROOT/patches/kernel/huawei/mozart/0005-mozart-use-b217-r8p0-mali.patch"
+
+apply_once \
+    "kernel/huawei/mozart" \
+    "$PATCH_ROOT/patches/kernel/huawei/mozart/0006-cpufreq-keep-scaling-min-freq-writable.patch"
 
 apply_once \
     "packages/apps/Bluetooth" \

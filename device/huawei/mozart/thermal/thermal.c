@@ -8,7 +8,9 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define LOG_TAG "ThermalHAL-hi3635"
 #include <log/log.h>
@@ -18,8 +20,15 @@
 
 #define MAX_PATH_LENGTH 128
 #define MAX_TYPE_LENGTH 32
+#define CPU_COUNT 8
+#define PROC_STAT_PATH "/proc/stat"
+#define CPU_ONLINE_PATH "/sys/devices/system/cpu/cpu%u/online"
 #define THERMAL_DIR "/sys/devices/virtual/thermal"
 #define THERMAL_ZONE_PREFIX "thermal_zone"
+
+static const char *cpu_names[CPU_COUNT] = {
+    "cpu0", "cpu1", "cpu2", "cpu3", "cpu4", "cpu5", "cpu6", "cpu7",
+};
 
 struct temperature_sensor {
     const char *name;
@@ -132,8 +141,63 @@ static ssize_t get_temperatures(thermal_module_t *module, temperature_t *list,
 
 static ssize_t get_cpu_usages(thermal_module_t *module, cpu_usage_t *list) {
     (void)module;
-    (void)list;
-    return 0;
+    if (list == NULL) {
+        return CPU_COUNT;
+    }
+
+    long ticks_per_second = sysconf(_SC_CLK_TCK);
+    if (ticks_per_second <= 0) {
+        return -EINVAL;
+    }
+
+    for (unsigned int cpu = 0; cpu < CPU_COUNT; ++cpu) {
+        list[cpu] = (cpu_usage_t) {
+            .name = cpu_names[cpu],
+            .active = 0,
+            .total = 0,
+            .is_online = cpu == 0,
+        };
+
+        if (cpu != 0) {
+            char path[MAX_PATH_LENGTH];
+            int online;
+            snprintf(path, sizeof(path), CPU_ONLINE_PATH, cpu);
+            FILE *online_file = fopen(path, "re");
+            if (online_file != NULL) {
+                list[cpu].is_online = fscanf(online_file, "%d", &online) == 1 && online != 0;
+                fclose(online_file);
+            }
+        }
+    }
+
+    FILE *stat_file = fopen(PROC_STAT_PATH, "re");
+    if (stat_file == NULL) {
+        return -errno;
+    }
+
+    char line[512];
+    while (fgets(line, sizeof(line), stat_file) != NULL) {
+        char name[16];
+        unsigned long long user, nice, system, idle, iowait, irq, softirq, steal;
+        if (sscanf(line, "%15s %llu %llu %llu %llu %llu %llu %llu %llu",
+                   name, &user, &nice, &system, &idle, &iowait, &irq, &softirq,
+                   &steal) != 9 || strncmp(name, "cpu", 3) != 0 || name[3] == '\0') {
+            continue;
+        }
+
+        char *end;
+        unsigned long cpu = strtoul(name + 3, &end, 10);
+        if (*end != '\0' || cpu >= CPU_COUNT) {
+            continue;
+        }
+
+        unsigned long long active = user + nice + system + irq + softirq + steal;
+        unsigned long long total = active + idle + iowait;
+        list[cpu].active = active * 1000ULL / (unsigned long long)ticks_per_second;
+        list[cpu].total = total * 1000ULL / (unsigned long long)ticks_per_second;
+    }
+    fclose(stat_file);
+    return CPU_COUNT;
 }
 
 static ssize_t get_cooling_devices(thermal_module_t *module,

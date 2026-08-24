@@ -67,3 +67,4 @@
 /dev/socket/oeminfo_nvm					u:object_r:mozart_oeminfo_socket:s0
 /dev/socket/tee-multi-user				u:object_r:mozart_tee_socket:s0
 /(vendor|system/vendor)/bin/HwCamCfgSvr			u:object_r:hwcamcfgsvr_exec:s0
+/(vendor|system/vendor)/bin/hw/android\.hardware\.health@2\.0-service\.mozart	u:object_r:hal_health_default_exec:s0

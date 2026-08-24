@@ -1,0 +1,8 @@
+cc_binary {
+    name: "android.hardware.health@2.0-service.mozart",
+    defaults: ["android.hardware.health@2.0-service_defaults"],
+    vendor: true,
+    relative_install_path: "hw",
+    srcs: ["HealthService.cpp"],
+    overrides: ["android.hardware.health@2.0-service"],
+}
