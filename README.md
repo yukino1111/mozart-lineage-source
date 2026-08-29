@@ -12,6 +12,8 @@ platform with patches and reproducible preparation scripts.
 - `device/huawei/mozart/` is the maintained final device tree, not a diff;
 - `patches/` contains changes to upstream AOSP, LineageOS, kernel and vendor
   repositories;
+- `experiments/` contains rejected research archives that are not applied or
+  built by the release workflow;
 - `local_manifests/mozart.xml` pins the device, vendor and kernel baselines to
   exact commits;
 - `scripts/install-device-tree.sh` installs the maintained device source over
@@ -34,8 +36,11 @@ scripts/apply-local-patches.sh /android/lineage18.1-mozart
 ```
 
 The script installs this repository's complete device tree and then applies
-idempotent patches relative to the clean Git revisions selected by the
-manifest. Do not run the pinned device baseline's old `patches/install.sh`;
+each active patch at most once: an already-applied patch is detected with a
+reverse check, while a new patch must pass a forward check before application.
+All files under `patches/` are referenced exactly once by this entry point;
+research patches under `experiments/` are deliberately excluded. Do not run
+the pinned device baseline's old `patches/install.sh`;
 its Android 9 patches only apply partially to the Android 11 platform.
 
 The image also expects the matching Cromite browser and System WebView APKs

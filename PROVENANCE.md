@@ -20,6 +20,11 @@ the other proprietary firmware inputs are never stored in this repository;
 only their paths, digests and deterministic compatibility transformations are
 published.
 
+`experiments/hwc2/` archives a rejected Mozart-specific HWC2 implementation
+maintained by yukino1111. It extends AOSP's Apache-2.0 `HWC2OnFbAdapter` and
+contains no Huawei compositor binary or copied proprietary implementation. The
+archive is research-only and is not applied or built by the release workflow.
+
 The vendor and kernel baselines are pinned in `local_manifests/mozart.xml` and
 remain separate upstream repositories. Only their required differences are
 stored here.
